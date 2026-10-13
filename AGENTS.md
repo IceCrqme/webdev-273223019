@@ -7,12 +7,11 @@ Read this file at the start of every session. Keep it short and correct; update 
 See `SPEC.md` for goals, non-goals and acceptance criteria.
 
 ## Commands
-<!-- How to install, run, test. Keep these exact and working. -->
-- Install: 
-- Run: 
-- Test: 
-- Coverage: 
-- MCP server: 
+- Install: `npm install`
+- Run: `npm run mcp`
+- Test: `node mcp-server/check.mjs -- npm run --silent mcp`
+- Coverage: Not configured
+- MCP server: `node mcp-server/server.js`
 
 ## Conventions
 <!-- Folder layout, naming, where business rules live, how errors are returned to the client. -->
@@ -30,7 +29,7 @@ that talks to the database directly is a second, unguarded way into your data: n
 
 ## The model feature
 <!-- Provider, env var, and the call site. -->
-- The provider is named in exactly one file: 
+- The provider is named in exactly one file:
 - The key comes from an environment variable and is never committed or logged.
 - Every call has a timeout and a deterministic fallback, so the app still works when the provider is down or rate-limited.
 - The model's output is re-checked against real data before anything is saved or shown.
@@ -65,3 +64,11 @@ that talks to the database directly is a second, unguarded way into your data: n
 - lower a coverage threshold or switch off a CI job to make the build green
 - add an MCP tool that reaches past the service layer
 - log a prompt that contains somebody's personal data
+
+## 2026-10-13 · Exercise 1 MCP server
+
+- Goal: Implement a working MCP server for the course lectures.
+- Delegated: Used an AI assistant for step-by-step guidance and debugging explanations.
+- Checkpoints: Self-check passed all 12/12 checks, including initialization, tool listing, valid and invalid tool calls, protocol errors, and clean stdout.
+- Went wrong: The first implementation returned a tool result instead of JSON-RPC error -32602 for an unknown tool. Fixed the handler and reran the self-check successfully.
+- Changed by hand: Created `mcp-server/server.js`, updated `mcp-server/README.md`, created the root `package.json`, and added the `mcp` npm script.
