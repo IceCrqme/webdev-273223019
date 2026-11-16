@@ -100,10 +100,17 @@ All MCP tools use the same service functions as the HTTP API, including authenti
 | AC-1 |  |
 
 ## Spec vs result
-The planned Slice 1 included email/password authentication, Google OAuth, and an upcoming events list backed by SQLite and a backend API (AC-14 to AC-19).
 
-During the first Gemini CLI session, the agent did not complete the implementation. The initial request took too long and was cancelled. Further attempts encountered API errors and model usage limits.
+The planned Slice 1 covers email/password authentication, Google OAuth, and an upcoming events list backed by SQLite and a backend API (AC-14 to AC-19).
 
-As a result, AC-14 to AC-19 remain unverified and the Slice 1 implementation is still pending. No alternative implementation or reinterpretation of the requirements was accepted.
+During the first Gemini CLI session, implementation was not completed because of cancelled requests, API errors, and model usage limits.
 
-The specification was updated manually to include numbered acceptance criteria, a structured MCP tools table, and coding conventions. The next step is to implement Slice 1 and verify its functionality with tests.
+During the second Gemini CLI session, the backend foundation was implemented using Node.js, Express, and better-sqlite3. The SQLite schema includes users, events, and registrations. The GET /api/events endpoint returns upcoming events with calculated available capacity.
+
+Verification: node test_backend.js returned three sample events with available_places values of 100, 30, and 50. The Exercise 2 structural checker passed 32/32 checks.
+
+Current status: AC-16, AC-17, and AC-18 have initial backend-level evidence, but are not fully verified through a signed-in user interface. AC-14, AC-15, and AC-19 remain unimplemented. Slice 1 is not complete.
+
+The second Gemini CLI session also ended because the model's daily quota was exhausted. The existing Exercise 1 MCP server was not modified.
+
+Next steps: implement email/password authentication, Google OAuth, protected account features, and the frontend; strengthen automated tests and verify all acceptance criteria.
