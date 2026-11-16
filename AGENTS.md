@@ -15,6 +15,15 @@ See `SPEC.md` for goals, non-goals and acceptance criteria.
 
 ## Conventions
 <!-- Folder layout, naming, where business rules live, how errors are returned to the client. -->
+- Use JavaScript and Node.js for the application.
+- Keep HTTP routes, business logic, and database operations in separate modules.
+- Use clear and descriptive names for files, functions, and variables.
+- Validate all user input before processing it.
+- Return clear error messages without exposing sensitive information.
+- Store passwords as secure hashes, never as plain text.
+- Keep API keys and secrets in environment variables.
+- HTTP API endpoints and MCP tools must use the same service functions.
+- Only organizers can manage events, and students can manage only their own registrations.
 
 ## Layers
 <!-- Fill in the file or folder for each layer. -->
