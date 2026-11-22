@@ -37,14 +37,13 @@ try {
     } else {
       console.log('Running Mocha tests (test/*.test.js)...');
       const mochaBin = path.join('node_modules', 'mocha', 'bin', 'mocha');
-      const mochaResult = spawnSync(process.execPath, [mochaBin, 'test/*.test.js'], {
-        env: process.env,
-        stdio: 'inherit'
+      fs.readdirSync('test').filter(f => f.endsWith('.test.js')).forEach(file => {
+        const mochaResult = spawnSync(process.execPath, [mochaBin, path.join('test', file)], {
+          env: process.env,
+          stdio: 'inherit'
+        });
+        if (mochaResult.status !== 0) exitCode = mochaResult.status || 1;
       });
-
-      if (mochaResult.status !== 0) {
-        exitCode = mochaResult.status || 1;
-      }
     }
   }
 } finally {

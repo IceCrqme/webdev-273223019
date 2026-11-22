@@ -58,3 +58,18 @@ One entry per agent session, newest at the bottom. Be honest: what went wrong is
   - Dependency changes: None.
 
 - Diagnostic (`checks/ex3.mjs`): 9/18 checks passed. Pending items include acceptance criteria traceability in test titles, model feature integration, and MCP tools implementation.
+
+## 2026-11-22 · Exercise 3 event registration implementation checkpoint
+
+- Goal: Implement event registration and cancellation business rules and HTTP endpoints (AC-20 to AC-25) using TDD.
+
+- Progress:
+  - TDD Red phase: Implemented `test/eventRegistration.test.js` covering successful registration (201), duplicate/capacity conflicts (409), owner cancellation (204), unauthorized cancellation (403), anonymous access (401), and non-existent resources (404). Verified 9/11 registration tests failed.
+  - TDD Green phase:
+    - Updated `src/services/eventService.js` with `registerForEvent` and `cancelRegistration` using atomic SQLite transactions, ID validation, and stable machine-readable error codes.
+    - Updated `src/routes/eventRoutes.js` with `POST /api/events/:eventId/register` and `DELETE /api/registrations/:registrationId` endpoints, including strict positive safe-integer validation for URL parameters.
+    - Updated `test/eventRegistration.test.js` to use dynamic future dates.
+  - Verification: All 26 tests pass successfully (10 auth, 5 migration, 11 registration). `test_backend.js` also passes.
+  - Dependency changes: None.
+
+- Went wrong / Changed in review: Fixed trailing whitespace in `src/routes/eventRoutes.js`. Ensured all tests run in isolated processes via `scripts/run-tests.js` to prevent SQLite connection leaks.
