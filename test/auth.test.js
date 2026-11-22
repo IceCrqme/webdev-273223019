@@ -1,0 +1,119 @@
+const os = require('os');
+const path = require('path');
+const fs = require('fs');
+const assert = require('node:assert/strict');
+const request = require('supertest');
+
+// Create unique temporary database and set environment variables before requiring app or database modules
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'club-events-test-'));
+const dbPath = path.join(tmpDir, 'test.db');
+
+process.env.DB_PATH = dbPath;
+process.env.SESSION_SECRET = 'test-session-secret';
+
+// Initialize the temporary database schema & seed
+require('../database/init');
+
+// Require app and db after setting env and initializing
+const app = require('../src/app');
+const db = require('../src/data/db');
+
+describe('AC-14: Authentication Tests', () => {
+  const agent = request.agent(app);
+  const testEmail = 'testuser@example.com';
+  const testPassword = 'securePassword123';
+
+  after(() => {
+    try {
+      db.close();
+    } catch (e) {
+      // ignore if already closed
+    }
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch (e) {
+      // ignore
+    }
+  });
+
+  it('AC-14: should reject registration with invalid email format', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ email: 'notanemail', password: testPassword });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.error, 'Invalid email format');
+  });
+
+  it('AC-14: should reject registration with short password', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ email: 'short@example.com', password: 'short' });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.error, 'Password must be at least 8 characters long');
+  });
+
+  it('AC-14: should successfully register a new user', async () => {
+    const res = await agent
+      .post('/api/auth/register')
+      .send({ email: testEmail, password: testPassword });
+    assert.strictEqual(res.status, 201);
+    assert.strictEqual(res.body.email, testEmail);
+    assert.ok(res.body.id);
+  });
+
+  it('AC-14: should reject registration with duplicate email', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ email: testEmail, password: testPassword });
+    assert.strictEqual(res.status, 409);
+    assert.strictEqual(res.body.error, 'Email already registered');
+  });
+
+  it('AC-14: should reject login with unknown email', async () => {
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'unknown@example.com', password: testPassword });
+    assert.strictEqual(res.status, 401);
+    assert.strictEqual(res.body.error, 'Invalid email or password');
+  });
+
+  it('AC-14: should reject login with wrong password', async () => {
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: testEmail, password: 'wrongPassword123' });
+    assert.strictEqual(res.status, 401);
+    assert.strictEqual(res.body.error, 'Invalid email or password');
+  });
+
+  it('AC-14: should successfully login with valid credentials', async () => {
+    const loginAgent = request.agent(app);
+    const res = await loginAgent
+      .post('/api/auth/login')
+      .send({ email: testEmail, password: testPassword });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.email, testEmail);
+  });
+
+  it('AC-14: should return 401 for unauthenticated GET /api/auth/me', async () => {
+    const res = await request(app).get('/api/auth/me');
+    assert.strictEqual(res.status, 401);
+    assert.strictEqual(res.body.error, 'Not authenticated');
+  });
+
+  it('AC-14: should return user profile for authenticated GET /api/auth/me', async () => {
+    // agent has active session from successful register/login
+    const res = await agent.get('/api/auth/me');
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.email, testEmail);
+  });
+
+  it('AC-14: should successfully logout and deny subsequent access', async () => {
+    const logoutRes = await agent.post('/api/auth/logout');
+    assert.strictEqual(logoutRes.status, 200);
+    assert.strictEqual(logoutRes.body.message, 'Logged out successfully');
+
+    const meRes = await agent.get('/api/auth/me');
+    assert.strictEqual(meRes.status, 401);
+    assert.strictEqual(meRes.body.error, 'Not authenticated');
+  });
+});
