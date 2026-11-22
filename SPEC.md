@@ -93,11 +93,45 @@ All MCP tools use the same service functions as the HTTP API, including authenti
 - AC-18: Event data is loaded through the backend API.
 - AC-19: Unauthorized users cannot access protected account features.
 
+### Slice 3: Event Registration
+- AC-20: Logged-in students can successfully register for an upcoming event, returning status 201.
+- AC-21: Attempting to register twice for the same event is rejected with status 409.
+- AC-22: Attempting to register for a full capacity event is rejected with status 409.
+- AC-23: Students can cancel their own event registrations resulting in HTTP 204, while another authenticated user attempting cancellation receives HTTP 403.
+- AC-24: Unauthenticated users attempting to register or cancel receive status 401.
+- AC-25: Attempting to register for or cancel a non-existent event or registration returns status 404.
+- AC-26: The frontend displays loading, empty, and error states appropriately during event loading and registration actions.
+
 ## Traceability
 <!-- Filled in from Exercise 3 onward: each AC id, and the test that names it. -->
 | Criterion | Test |
 | --- | --- |
 | AC-1 |  |
+| AC-2 |  |
+| AC-3 |  |
+| AC-4 |  |
+| AC-5 |  |
+| AC-6 |  |
+| AC-7 |  |
+| AC-8 |  |
+| AC-9 |  |
+| AC-10 |  |
+| AC-11 |  |
+| AC-12 |  |
+| AC-13 |  |
+| AC-14 |  |
+| AC-15 |  |
+| AC-16 |  |
+| AC-17 |  |
+| AC-18 |  |
+| AC-19 |  |
+| AC-20 |  |
+| AC-21 |  |
+| AC-22 |  |
+| AC-23 |  |
+| AC-24 |  |
+| AC-25 |  |
+| AC-26 |  |
 
 ## Spec vs result
 

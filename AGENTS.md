@@ -57,10 +57,12 @@ that talks to the database directly is a second, unguarded way into your data: n
 - A test is evidence. Changing a test so the code passes destroys the evidence.
 
 ## Always ask before
-- deleting files or folders
+- deleting files, folders, or database records/data
 - editing a migration that has already run
+- changing the database schema
 - installing or removing dependencies
-- pushing, tagging or changing CI
+- running destructive commands
+- pushing, tagging, or changing CI
 - anything that touches secrets or `.env`
 - changing an authentication or authorization rule
 - adding, renaming or removing an MCP tool

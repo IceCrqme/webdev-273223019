@@ -27,3 +27,23 @@ One entry per agent session, newest at the bottom. Be honest: what went wrong is
 - Went wrong: The first dependency installation failed because sqlite-migrations was unavailable. Gemini corrected the dependencies. Later, the daily quota for gemini-3-flash-preview was exhausted while Gemini was preparing to update AGENTS.md.
 
 - Result: Backend foundation implemented and tested. Email/password authentication, Google OAuth, account protection, and the frontend remain unfinished. The existing Exercise 1 MCP server was not modified.
+
+## 2026-11-22 · Exercise 3 planning and preparation session
+
+- Goal: Plan and prepare Exercise 3 for student event registration with capacity and duplicate checks, owner-only cancellation, Gemini AI service with fallback, and service-backed MCP tools preserving Exercise 1 functionality.
+
+- Reviewed plan:
+  1. Acceptance criteria (AC-20 to AC-26), always-ask rules in AGENTS.md, and session checkpoints.
+  2. Numbered migration adding registration unique constraint and verification on an empty database.
+  3. Failing service unit tests followed by implementation of registration and capacity business rules.
+  4. REST API integration tests and endpoints for event registration returning 201, 409.
+  5. Owner-only event registration cancellation tests and endpoints returning 204, 403, 404, 401.
+  6. Frontend implementation with loading, empty, and error states.
+  7. Gemini AI event description service with fake-client unit tests, AbortSignal timeout, and fallback.
+  8. Three service-backed MCP tools (`list_events`, `get_event_details`, `register_for_event`) with user context, preserving Exercise 1 tools.
+  9. Manual HTTP status verification, mutation test proving rule tests fail when broken, self-written architecture note, traceability table, USAGE.md, GitHub Actions CI verification, and `checks/ex3.mjs` execution.
+  - Development workflow: run `npm test`, review diff, and make a commit after each working implementation step.
+
+- Autonomy & Checkpoints: Set autonomy to one small approved step at a time, requiring explicit permission before file changes, dependency installation, schema/auth changes, destructive commands, or Git push. Checkpoints established for plan review, diff inspection, test execution before commits, manual status verification, mutation testing, CI, and running checks/ex3.mjs.
+
+- Went wrong / Changed in review: Removed unrelated organizer CRUD and Google OAuth from the Exercise 3 scope per the professor's instructions. Decided to use a numbered migration adding a unique constraint rather than recreating existing tables. Included frontend loading/empty/error states, separated service tests from API tests, and adopted TDD (writing failure tests before implementation).
