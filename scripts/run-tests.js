@@ -35,9 +35,9 @@ try {
     if (backendResult.status !== 0) {
       exitCode = backendResult.status || 1;
     } else {
-      console.log('Running Mocha authentication tests (test/auth.test.js)...');
+      console.log('Running Mocha tests (test/*.test.js)...');
       const mochaBin = path.join('node_modules', 'mocha', 'bin', 'mocha');
-      const mochaResult = spawnSync(process.execPath, [mochaBin, 'test/auth.test.js'], {
+      const mochaResult = spawnSync(process.execPath, [mochaBin, 'test/*.test.js'], {
         env: process.env,
         stdio: 'inherit'
       });

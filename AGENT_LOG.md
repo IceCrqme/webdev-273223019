@@ -47,3 +47,14 @@ One entry per agent session, newest at the bottom. Be honest: what went wrong is
 - Autonomy & Checkpoints: Set autonomy to one small approved step at a time, requiring explicit permission before file changes, dependency installation, schema/auth changes, destructive commands, or Git push. Checkpoints established for plan review, diff inspection, test execution before commits, manual status verification, mutation testing, CI, and running checks/ex3.mjs.
 
 - Went wrong / Changed in review: Removed unrelated organizer CRUD and Google OAuth from the Exercise 3 scope per the professor's instructions. Decided to use a numbered migration adding a unique constraint rather than recreating existing tables. Included frontend loading/empty/error states, separated service tests from API tests, and adopted TDD (writing failure tests before implementation).
+
+## 2026-11-22 · Exercise 3 database migration implementation checkpoint
+
+- Goal: Implement numbered database migration for registrations unique constraint and verify with TDD.
+
+- Progress:
+  - TDD Red phase: Verified test failure due to missing `database/migrations/001_registrations_migration.js`.
+  - TDD Green phase: Implemented `runMigration` supporting fresh DBs, pre-existing unique indexes, legacy tables without unique constraints (adding unique index atomically), safe duplicate rejection without deleting records, and idempotent repeated runs. All 5 migration tests pass successfully (15/15 total tests passing).
+  - Dependency changes: None.
+
+- Diagnostic (`checks/ex3.mjs`): 9/18 checks passed. Pending items include acceptance criteria traceability in test titles, model feature integration, and MCP tools implementation.
