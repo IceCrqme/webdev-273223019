@@ -1,0 +1,135 @@
+:root {
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --text-small: 0.875rem;
+  --text-body: 1rem;
+  --text-title: 1.5rem;
+  --color-text: #172033;
+  --color-muted: #5c667a;
+  --color-border: #d7dce5;
+  --color-primary: #2457c5;
+  --color-primary-hover: #1b438f;
+  --color-success: #17643a;
+  --color-error: #9b2c2c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--color-text);
+  background: #f6f7fb;
+  font-family: Arial, sans-serif;
+  font-size: var(--text-body);
+  line-height: 1.5;
+}
+
+.page-shell {
+  width: min(100% - 2rem, 960px);
+  margin: 0 auto;
+  padding: var(--space-6) 0;
+}
+
+.page-header {
+  margin-bottom: var(--space-5);
+}
+
+.eyebrow {
+  margin: 0 0 var(--space-1);
+  color: var(--color-primary);
+  font-size: var(--text-small);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: var(--text-title);
+  line-height: 1.2;
+}
+
+.status {
+  min-height: 3rem;
+  margin-bottom: var(--space-4);
+  color: var(--color-muted);
+}
+
+.status[data-state="empty"],
+.status[data-state="success"] {
+  color: var(--color-success);
+}
+
+.status[data-state="error"] {
+  color: var(--color-error);
+}
+
+.event-list {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.event-card {
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: var(--space-5);
+}
+
+.event-card h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-title);
+}
+
+.event-meta {
+  margin: 0 0 var(--space-2);
+  color: var(--color-muted);
+  font-size: var(--text-small);
+}
+
+.event-description {
+  margin: var(--space-3) 0 var(--space-4);
+}
+
+.register-button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 0.375rem;
+  padding: 0.625rem var(--space-4);
+  color: #fff;
+  background: var(--color-primary);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.register-button:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.register-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.register-button:focus-visible {
+  outline: 3px solid #111827;
+  outline-offset: 3px;
+}
+
+@media (min-width: 768px) {
+  .event-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .event-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

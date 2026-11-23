@@ -73,3 +73,16 @@ One entry per agent session, newest at the bottom. Be honest: what went wrong is
   - Dependency changes: None.
 
 - Went wrong / Changed in review: Fixed trailing whitespace in `src/routes/eventRoutes.js`. Ensured all tests run in isolated processes via `scripts/run-tests.js` to prevent SQLite connection leaks.
+
+## 2026-11-23 · Exercise 3 AC-26 frontend test and implementation checkpoint
+
+- Goal: Implement the AC-26 frontend for event loading and registration states while preserving the existing registration API.
+- TDD Red: Added `test/frontend.test.js` and ran it before the UI existed. The initial suite reported 3 failing tests. After strengthening it with a lightweight fake DOM and mocked fetch, the suite reported 0 passing and 7 failing tests covering static serving, loading, empty, event rendering/fetch error, pending/success, 401/409 messages, and existing endpoint reuse.
+- Implementation: Added `public/index.html`, `public/styles.css`, and `public/app.js`, plus static-file serving in `src/app.js`. The frontend shows loading, empty, fetch error, registration pending, success, 401, and 409 states with no new dependencies.
+- TDD Green: The focused `test/frontend.test.js` suite passes 7/7 tests.
+
+## 2026-11-23 · Exercise 3 AC-26 observable UI regression fixes
+
+- Goal: Correct semantic event-card rendering and server-consistent registration/loading states found after initial frontend delivery.
+- Changes: Preserved the actual event-card heading, paragraphs, and button elements instead of replacing them with `textContent`; added explicit 409/full and duplicate button states; added a working event-loading retry; cleared stale cards on failed refreshes; and separated POST success from subsequent event-list refresh failure.
+- Testing: Added focused behavioral assertions for semantic DOM structure, 409 button states, Retry behavior, stale-card clearing, and separate refresh-failure reporting. The focused frontend suite passes 11/11 tests.

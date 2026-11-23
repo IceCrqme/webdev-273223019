@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const eventRoutes = require('./routes/eventRoutes');
@@ -38,6 +39,9 @@ app.use(session({
   },
   store: new session.MemoryStore()
 }));
+
+// Frontend assets
+app.use(express.static(path.join(__dirname, '../public')));
 
 // API Routes
 app.use('/api', eventRoutes);

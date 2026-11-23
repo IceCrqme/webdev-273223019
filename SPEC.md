@@ -131,7 +131,7 @@ All MCP tools use the same service functions as the HTTP API, including authenti
 | AC-23 |  |
 | AC-24 |  |
 | AC-25 |  |
-| AC-26 |  |
+| AC-26 | test/frontend.test.js |
 
 ## Spec vs result
 
