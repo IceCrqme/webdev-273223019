@@ -4,7 +4,7 @@ const fs = require('fs');
 const assert = require('node:assert/strict');
 const request = require('supertest');
 
-describe('Exercise 3: Event Registration (AC-20 to AC-25)', () => {
+describe('AC-13: Exercise 3 automated tests for registration business rules', () => {
   let app, db;
   let student1, student2, student1Id, student2Id;
   let originalDbPath, originalSessionSecret;
@@ -87,14 +87,14 @@ describe('Exercise 3: Event Registration (AC-20 to AC-25)', () => {
     return stmt.run(title, 'Test Description', date, 'Test Location', capacity).lastInsertRowid;
   }
 
-  it('AC-20: should allow a logged-in student to register for an upcoming event (201)', async () => {
+  it('AC-6, AC-20: should allow a logged-in student to register for an upcoming event (201)', async () => {
     const eventId = createEvent('Future Event', 50);
     const res = await student1.post(`/api/events/${eventId}/register`);
     assert.strictEqual(res.status, 201);
     assert.ok(res.body.id, 'Response should contain registration ID');
   });
 
-  it('AC-21: should reject duplicate registration with 409', async () => {
+  it('AC-7, AC-21: should reject duplicate registration with 409', async () => {
     const eventId = createEvent('Duplicate Test', 50);
     const firstRes = await student1.post(`/api/events/${eventId}/register`);
     assert.strictEqual(firstRes.status, 201, 'First registration should succeed');
@@ -104,7 +104,7 @@ describe('Exercise 3: Event Registration (AC-20 to AC-25)', () => {
     assert.match(res.body.error, /already registered/i);
   });
 
-  it('AC-22: should reject registration for a full event with 409', async () => {
+  it('AC-7, AC-22: should reject registration for a full event with 409', async () => {
     const eventId = createEvent('Full Event', 1);
     const firstRes = await student1.post(`/api/events/${eventId}/register`);
     assert.strictEqual(firstRes.status, 201, 'First registration should succeed');
@@ -114,7 +114,7 @@ describe('Exercise 3: Event Registration (AC-20 to AC-25)', () => {
     assert.match(res.body.error, /full/i);
   });
 
-  it('AC-23: should allow owner to cancel registration with 204', async () => {
+  it('AC-6, AC-23: should allow owner to cancel registration with 204', async () => {
     const eventId = createEvent('Cancel Test', 50);
     const regRes = await student1.post(`/api/events/${eventId}/register`);
     assert.strictEqual(regRes.status, 201, 'Prerequisite registration should succeed');

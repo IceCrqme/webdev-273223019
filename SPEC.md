@@ -111,20 +111,20 @@ All MCP tools use the same service functions as the HTTP API, including authenti
 | AC-3 |  |
 | AC-4 |  |
 | AC-5 |  |
-| AC-6 |  |
-| AC-7 |  |
+| AC-6 | test/eventRegistration.test.js |
+| AC-7 | test/eventRegistration.test.js |
 | AC-8 |  |
 | AC-9 | test/eventDescriptionService.test.js |
 | AC-10 | test/eventDescriptionService.test.js |
-| AC-11 |  |
-| AC-12 |  |
-| AC-13 |  |
+| AC-11 | test/projectMcpTools.test.js |
+| AC-12 | test/auth.test.js |
+| AC-13 | test/eventRegistration.test.js |
 | AC-14 |  |
 | AC-15 |  |
 | AC-16 |  |
 | AC-17 |  |
-| AC-18 |  |
-| AC-19 |  |
+| AC-18 | test/frontend.test.js; test_backend.js |
+| AC-19 | test/auth.test.js |
 | AC-20 |  |
 | AC-21 |  |
 | AC-22 |  |

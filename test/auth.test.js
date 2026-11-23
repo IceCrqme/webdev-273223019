@@ -36,7 +36,7 @@ describe('AC-14: Authentication Tests', () => {
     }
   });
 
-  it('AC-14: should reject registration with invalid email format', async () => {
+  it('AC-12, AC-14: should reject registration with invalid email format', async () => {
     const res = await request(app)
       .post('/api/auth/register')
       .send({ email: 'notanemail', password: testPassword });
@@ -44,7 +44,7 @@ describe('AC-14: Authentication Tests', () => {
     assert.strictEqual(res.body.error, 'Invalid email format');
   });
 
-  it('AC-14: should reject registration with short password', async () => {
+  it('AC-12, AC-14: should reject registration with short password', async () => {
     const res = await request(app)
       .post('/api/auth/register')
       .send({ email: 'short@example.com', password: 'short' });
@@ -94,7 +94,7 @@ describe('AC-14: Authentication Tests', () => {
     assert.strictEqual(res.body.email, testEmail);
   });
 
-  it('AC-14: should return 401 for unauthenticated GET /api/auth/me', async () => {
+  it('AC-19: should return 401 for unauthenticated GET /api/auth/me', async () => {
     const res = await request(app).get('/api/auth/me');
     assert.strictEqual(res.status, 401);
     assert.strictEqual(res.body.error, 'Not authenticated');

@@ -279,7 +279,7 @@ describe('Exercise 3: AC-26 frontend event states', () => {
     assert.match(refreshFailure.status.textContent, /could not refresh/i);
   });
 
-  it('AC-26: frontend calls the existing event and registration APIs', () => {
+  it('AC-18, AC-26: frontend calls the existing event and registration APIs', () => {
     const appSource = fs.readFileSync(path.join(__dirname, '../public/app.js'), 'utf8');
 
     assert.match(appSource, /\/api\/events/);

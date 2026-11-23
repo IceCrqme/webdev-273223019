@@ -17,7 +17,7 @@ Your hand-written MCP server lives in this folder. Write it in any language you 
 
 ## Where this goes next
 
-Do not throw this folder away after Exercise 1. From Exercise 3 it becomes **your project's own MCP server**: the same protocol loop, with the tools rewired from `lectures.json` to your real data. Its tools call exactly the same service functions your HTTP routes call, so a tool obeys the same rules an API request does, and it carries a user (the `MCP_TOKEN` in `.env.example`) so it may do what that person may do and no more.
+Do not throw this folder away after Exercise 1. From Exercise 3 it becomes **your project's own MCP server**: the same protocol loop, with project tools backed by your real data. Project tools call the same service functions as HTTP routes, so they share the same business rules. Registration uses the trusted process-level `MCP_USER_ID` from `.env.example`; it is never accepted as a tool argument. If it is unset or invalid, registration fails closed.
 
 That is the whole design, and it is one sentence: **one set of rules, two front doors.** An MCP tool that writes its own database query is a second way into your data with none of your rules on it, and Exercise 5 is very good at finding those.
 

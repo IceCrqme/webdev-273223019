@@ -1,10 +1,26 @@
 
 const fs = require("fs");
 const readline = require("readline");
+const eventService = require("../src/services/eventService");
+const authService = require("../src/services/authService");
+const { createProjectTools } = require("./projectTools");
+const { createLineHandler } = require("./lineHandler");
 
 const lectures = JSON.parse(
   fs.readFileSync(__dirname + "/lectures.json", "utf8")
 );
+
+function getConfiguredUserId(value) {
+  if (typeof value !== "string" || !/^[1-9]\d*$/.test(value)) return null;
+  const userId = Number(value);
+  return Number.isSafeInteger(userId) ? userId : null;
+}
+
+const projectTools = createProjectTools({
+  eventService,
+  authService,
+  userId: getConfiguredUserId(process.env.MCP_USER_ID)
+});
 
 const tools = [
   {
@@ -22,7 +38,8 @@ const tools = [
     name: "list_lectures",
     description: "List all available course lectures with their numbers and titles.",
     inputSchema: { type: "object", properties: {} }
-  }
+  },
+  ...projectTools.definitions
 ];
 
 function send(message) {
@@ -37,8 +54,12 @@ function error(id, code, message) {
   send({ jsonrpc: "2.0", id, error: { code, message } });
 }
 
-function handle(message) {
-  const { id, method, params = {} } = message;
+async function handle(message) {
+  const { id, method } = message;
+  const params = message.params === undefined ? {} : message.params;
+  if (!params || typeof params !== "object" || Array.isArray(params)) {
+    return error(id, -32602, "Invalid params");
+  }
 
   if (method === "initialize") {
     return result(id, {
@@ -86,6 +107,8 @@ function handle(message) {
           })))
         }]
       };
+    } else if (projectTools.definitions.some(tool => tool.name === name)) {
+      output = await projectTools.call(name, args);
     } else {
       return error(id, -32602, `Unknown tool: ${name}`);
     }
@@ -103,10 +126,7 @@ const rl = readline.createInterface({
   terminal: false
 });
 
-rl.on("line", line => {
-  try {
-    handle(JSON.parse(line));
-  } catch {
-    error(null, -32700, "Parse error");
-  }
-});
+rl.on("line", createLineHandler({
+  handleMessage: handle,
+  sendMessage: send
+}));

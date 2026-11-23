@@ -94,3 +94,20 @@ One entry per agent session, newest at the bottom. Be honest: what went wrong is
 - Implementation: Added the isolated Gemini client and injectable event-description service. The service validates inputs and plain-text output, uses `AbortController` with a rejecting timeout race, and returns only a `{ description, fallback }` suggestion result. It never writes or publishes events. Missing credentials, malformed output, timeouts, and provider errors use an input-derived deterministic fallback.
 - TDD Green: The focused mocked-client suite passes 5/5 tests, including malformed output, missing credentials, timeout abort, and provider failure. No dependencies or credentials were used.
 - Verification: `npm test` passes all 42 tests. `checks/ex3.mjs` passes 14/18; the model checks pass, while the remaining failures concern unimplemented AC traceability and project MCP tools/authentication, outside this task.
+
+## 2026-11-23 · Exercise 3 project MCP tools
+
+- Goal: Add `list_events`, `get_event_details`, and `register_for_event` to the project MCP server while retaining the two Exercise 1 lecture tools and reusing event services.
+- Identity: The existing stdio server had no caller context; HTTP routes use `req.session.userId`. After review, registration identity is the trusted process-level `MCP_USER_ID`, configured by the MCP host and never accepted in tool arguments. Missing or invalid identity fails closed. Updated `.env.example` and the MCP README to match; no authorization rule or schema changed.
+- TDD Red: Added `test/projectMcpTools.test.js` before the implementation. The focused run failed to load the not-yet-created `mcp-server/projectTools.js`.
+- Implementation: Added an injectable project-tool adapter that calls `eventService.getUpcomingEvents`, `getEventDetails`, and `registerForEvent`. Added the event-detail service query, delegated registration to the existing service, and registered project tools in the existing stdio JSON-RPC server without removing lecture tools.
+- TDD Green: The mocked project-tool tests pass 6/6, covering tool listing, event listing/detail/not-found, trusted identity, successful registration, duplicate/full errors, and missing identity.
+- Verification: `npm test` passes all 48 tests. The Exercise 1 MCP conformance check passes 12/12. `checks/ex3.mjs` passes 17/18; its sole remaining failure is traceability for unrelated AC-3/4/5/6/7/8/12/13/15/16/17/18/19.
+
+## 2026-11-23 · Exercise 3 MCP identity and JSON-RPC audit
+
+- Goal: Verify configured MCP user existence in SQLite, distinguish parse/invalid-parameter/internal JSON-RPC errors, and audit the Exercise 3 traceability failure before committing.
+- TDD Red: Added a real temporary-SQLite test for a valid positive but nonexistent `MCP_USER_ID`; before the fix, the MCP tool returned only a generic event error. Added stdio malformed-JSON and null-params tests plus an injected handler-rejection test; null params were incorrectly reported as `-32700 Parse error`, and the injectable line-handler module did not yet exist.
+- Implementation: MCP registration now verifies the configured user through `authService.getUserById` before delegating unchanged to `eventService.registerForEvent`. The tool still does not accept a user ID argument. The line handler now separates JSON parsing from request dispatch: malformed JSON returns `-32700`, invalid params return `-32602`, and unexpected handler failures return `-32603` with the request ID.
+- Traceability: Added identifiers only to existing evidence for AC-6/7/12/13/18/19. AC-3/5/8/15 remain unsupported; AC-4/16/17 remain unlinked because existing tests do not establish the full required behavior.
+- Verification: `npm test` passes all 52 tests; Exercise 1 MCP conformance passes 12/12; `git diff --check` passes. `checks/ex3.mjs` passes 17/18, with only the aggregate traceability check failing for AC-3/4/5/8/15/16/17.

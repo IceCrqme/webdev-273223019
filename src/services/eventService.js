@@ -20,6 +20,30 @@ async function getUpcomingEvents() {
   return db.prepare(query).all();
 }
 
+async function getEventDetails(eventId) {
+  if (!Number.isSafeInteger(eventId) || eventId <= 0) {
+    throw new Error('INVALID_INPUT');
+  }
+
+  const event = db.prepare(`
+    SELECT
+      e.id,
+      e.title,
+      e.description,
+      e.date,
+      e.location,
+      e.capacity,
+      (e.capacity - COUNT(r.id)) as available_places
+    FROM events e
+    LEFT JOIN registrations r ON e.id = r.event_id
+    WHERE e.id = ?
+    GROUP BY e.id
+  `).get(eventId);
+
+  if (!event) throw new Error('EVENT_NOT_FOUND');
+  return event;
+}
+
 async function registerForEvent(userId, eventId) {
   if (!Number.isInteger(userId) || userId <= 0 || !Number.isInteger(eventId) || eventId <= 0) {
     throw new Error('INVALID_INPUT');
@@ -64,6 +88,7 @@ async function cancelRegistration(userId, registrationId) {
 
 module.exports = {
   getUpcomingEvents,
+  getEventDetails,
   registerForEvent,
   cancelRegistration
 };
