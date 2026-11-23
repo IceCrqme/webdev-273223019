@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const request = require('supertest');
 const vm = require('node:vm');
@@ -83,10 +84,36 @@ function collectText(node) {
 
 describe('Exercise 3: AC-26 frontend event states', () => {
   let app;
+  let db;
+  let tmpDir;
+  let originalDbPath;
+  let originalSessionSecret;
 
   before(() => {
-    process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'frontend-test-secret';
+    originalDbPath = process.env.DB_PATH;
+    originalSessionSecret = process.env.SESSION_SECRET;
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'club-events-frontend-test-'));
+    process.env.DB_PATH = path.join(tmpDir, 'test.db');
+    process.env.SESSION_SECRET = 'frontend-test-secret';
+
+    require('../database/init');
     app = require('../src/app');
+    db = require('../src/data/db');
+  });
+
+  after(() => {
+    if (db) db.close();
+    if (originalDbPath === undefined) {
+      delete process.env.DB_PATH;
+    } else {
+      process.env.DB_PATH = originalDbPath;
+    }
+    if (originalSessionSecret === undefined) {
+      delete process.env.SESSION_SECRET;
+    } else {
+      process.env.SESSION_SECRET = originalSessionSecret;
+    }
+    if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it('AC-26: serves the events frontend and its assets', async () => {
@@ -148,6 +175,63 @@ describe('Exercise 3: AC-26 frontend event states', () => {
     });
     await failing.api.loadEvents();
     assert.match(failing.status.textContent, /Could not load events/i);
+  });
+
+  it('AC-4, AC-16, AC-17: signed-in student sees real upcoming event fields from SQLite', async () => {
+    db.prepare('DELETE FROM registrations').run();
+    db.prepare('DELETE FROM events').run();
+
+    const student = request.agent(app);
+    const signup = await student.post('/api/auth/register').send({
+      email: `events-reader-${Date.now()}@example.com`,
+      password: 'securePassword123',
+    });
+    assert.strictEqual(signup.status, 201);
+
+    const profile = await student.get('/api/auth/me');
+    assert.strictEqual(profile.status, 200);
+    assert.strictEqual(profile.body.id, signup.body.id);
+
+    const futureDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const insertEvent = db.prepare(
+      'INSERT INTO events (title, description, date, location, capacity) VALUES (?, ?, ?, ?, ?)'
+    );
+    const eventId = insertEvent.run(
+      'SQLite-backed Workshop',
+      'A real event from the test database.',
+      futureDate,
+      'Engineering Lab',
+      7
+    ).lastInsertRowid;
+    insertEvent.run(
+      'Past Workshop',
+      'This event should be filtered out.',
+      '2020-01-01T10:00:00.000Z',
+      'Old Hall',
+      10
+    );
+    db.prepare('INSERT INTO registrations (user_id, event_id) VALUES (?, ?)').run(
+      signup.body.id,
+      eventId
+    );
+
+    let requestedUrl;
+    const { api, list } = await loadFrontend(async (url) => {
+      requestedUrl = url;
+      const response = await student.get(url);
+      return jsonResponse(response.status, response.body);
+    });
+    await api.loadEvents();
+
+    assert.strictEqual(requestedUrl, '/api/events');
+    assert.strictEqual(list.children.length, 1);
+    const card = list.children[0];
+    assert.strictEqual(card.children[0].textContent, 'SQLite-backed Workshop');
+    assert.strictEqual(
+      card.children[1].textContent,
+      `${new Date(futureDate).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })} | Engineering Lab`
+    );
+    assert.strictEqual(card.children[3].textContent, '6 places available');
   });
 
   it('AC-26: register pending state disables the button and success is announced', async () => {

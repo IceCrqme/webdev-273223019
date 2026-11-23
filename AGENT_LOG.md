@@ -111,3 +111,10 @@ One entry per agent session, newest at the bottom. Be honest: what went wrong is
 - Implementation: MCP registration now verifies the configured user through `authService.getUserById` before delegating unchanged to `eventService.registerForEvent`. The tool still does not accept a user ID argument. The line handler now separates JSON parsing from request dispatch: malformed JSON returns `-32700`, invalid params return `-32602`, and unexpected handler failures return `-32603` with the request ID.
 - Traceability: Added identifiers only to existing evidence for AC-6/7/12/13/18/19. AC-3/5/8/15 remain unsupported; AC-4/16/17 remain unlinked because existing tests do not establish the full required behavior.
 - Verification: `npm test` passes all 52 tests; Exercise 1 MCP conformance passes 12/12; `git diff --check` passes. `checks/ex3.mjs` passes 17/18, with only the aggregate traceability check failing for AC-3/4/5/8/15/16/17.
+
+## 2026-11-23 · Exercise 3 event listing integration evidence
+
+- Goal: Verify AC-4, AC-16, and AC-17 through a signed-in student's real SQLite-to-API-to-frontend flow.
+- Test: Added a temporary-database integration test that registers a student, confirms the session, inserts future and past events plus one registration, requests the real `GET /api/events` endpoint through the authenticated Supertest agent, and asserts that the frontend displays only the upcoming event with its title, formatted date, location, and available places.
+- Implementation: No production changes were needed; the existing endpoint and frontend behavior satisfy the tested criteria. Updated the SPEC traceability table only after the integration assertions passed.
+- Verification: The first focused run exposed a missing `node:os` import in the test setup; after adding it, the focused frontend suite passes 12/12 and `npm test` passes all 53 tests. `git diff --check` passes. `checks/ex3.mjs` remains 17/18 because unrelated AC-3, AC-5, AC-8, and AC-15 still lack tests.
