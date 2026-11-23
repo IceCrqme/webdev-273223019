@@ -114,8 +114,8 @@ All MCP tools use the same service functions as the HTTP API, including authenti
 | AC-6 |  |
 | AC-7 |  |
 | AC-8 |  |
-| AC-9 |  |
-| AC-10 |  |
+| AC-9 | test/eventDescriptionService.test.js |
+| AC-10 | test/eventDescriptionService.test.js |
 | AC-11 |  |
 | AC-12 |  |
 | AC-13 |  |

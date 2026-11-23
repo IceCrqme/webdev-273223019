@@ -86,3 +86,11 @@ One entry per agent session, newest at the bottom. Be honest: what went wrong is
 - Goal: Correct semantic event-card rendering and server-consistent registration/loading states found after initial frontend delivery.
 - Changes: Preserved the actual event-card heading, paragraphs, and button elements instead of replacing them with `textContent`; added explicit 409/full and duplicate button states; added a working event-loading retry; cleared stale cards on failed refreshes; and separated POST success from subsequent event-list refresh failure.
 - Testing: Added focused behavioral assertions for semantic DOM structure, 409 button states, Retry behavior, stale-card clearing, and separate refresh-failure reporting. The focused frontend suite passes 11/11 tests.
+
+## 2026-11-23 · Exercise 3 AI description suggestion service
+
+- Goal: Implement the AC-9/AC-10 provider-backed description suggestion service with a bounded timeout and deterministic fallback.
+- TDD Red: Added `test/eventDescriptionService.test.js` first. The focused test command failed at module loading because `src/services/eventDescriptionService.js` did not exist; no test cases ran.
+- Implementation: Added the isolated Gemini client and injectable event-description service. The service validates inputs and plain-text output, uses `AbortController` with a rejecting timeout race, and returns only a `{ description, fallback }` suggestion result. It never writes or publishes events. Missing credentials, malformed output, timeouts, and provider errors use an input-derived deterministic fallback.
+- TDD Green: The focused mocked-client suite passes 5/5 tests, including malformed output, missing credentials, timeout abort, and provider failure. No dependencies or credentials were used.
+- Verification: `npm test` passes all 42 tests. `checks/ex3.mjs` passes 14/18; the model checks pass, while the remaining failures concern unimplemented AC traceability and project MCP tools/authentication, outside this task.
