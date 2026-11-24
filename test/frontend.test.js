@@ -135,6 +135,34 @@ function createAuthDocument(mode) {
   };
 }
 
+function createMyEventsDocument() {
+  const status = createNode('p');
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
+  const list = createNode('ul');
+  const elements = {
+    '#my-events-status': status,
+    '#my-events-list': list,
+  };
+  const documentListeners = {};
+
+  return {
+    document: {
+      body: createNode('body'),
+      createElement: createNode,
+      querySelector(selector) {
+        return elements[selector] || null;
+      },
+      addEventListener(type, listener) {
+        documentListeners[type] = listener;
+      },
+    },
+    documentListeners,
+    status,
+    list,
+  };
+}
+
 async function loadFrontend(fetchImpl) {
   const appPath = path.join(__dirname, '../public/app.js');
   const appSource = fs.readFileSync(appPath, 'utf8');
@@ -175,6 +203,22 @@ async function loadAuthFrontend(mode, fetchImpl) {
     document: fake.document,
     fetch: fetchImpl,
     console,
+  });
+
+  vm.runInContext(appSource, context);
+  return { ...fake, window: context.window };
+}
+
+async function loadMyEventsFrontend(fetchImpl, confirmImpl = () => true) {
+  const appPath = path.join(__dirname, '../public/my-events.js');
+  const appSource = fs.readFileSync(appPath, 'utf8');
+  const fake = createMyEventsDocument();
+  const context = vm.createContext({
+    window: { confirm: confirmImpl },
+    document: fake.document,
+    fetch: fetchImpl,
+    console,
+    Date,
   });
 
   vm.runInContext(appSource, context);
@@ -940,5 +984,125 @@ describe('AC-2, AC-14: email and password authentication frontend', () => {
     assert.match(page.status.textContent, /invalid email or password/i);
     assert.strictEqual(page.status.attributes['aria-live'], 'polite');
     assert.strictEqual(page.submit.disabled, false);
+  });
+});
+
+describe('AC-6, AC-19: student My Events frontend', () => {
+  let app;
+
+  before(() => {
+    app = require('../src/app');
+  });
+
+  const registration = {
+    registration_id: 31,
+    event_id: 12,
+    title: 'Accessible Workshop',
+    description: 'Build something together.',
+    date: '2031-04-05T18:30:00.000Z',
+    location: 'Community Hall',
+  };
+
+  it('serves the accessible My Events page and links to it from app navigation', async () => {
+    const page = await request(app).get('/my-events.html');
+    const script = await request(app).get('/my-events.js');
+    assert.strictEqual(page.status, 200);
+    assert.match(page.text, /My Events/);
+    assert.match(page.text, /aria-live="polite"/);
+    assert.match(page.text, /href="\/login\.html"/);
+    assert.match(page.text, /href="\/"/);
+    assert.strictEqual(script.status, 200);
+
+    for (const route of ['/', '/login.html', '/register.html', '/organizer.html']) {
+      const response = await request(app).get(route);
+      assert.match(response.text, /href="\/my-events\.html"/, route);
+    }
+  });
+
+  it('shows loading and empty states while using the session-authenticated endpoint', async () => {
+    let resolveList;
+    const pending = new Promise((resolve) => { resolveList = resolve; });
+    const calls = [];
+    const page = await loadMyEventsFrontend((url, options) => {
+      calls.push({ url, options });
+      return pending;
+    });
+    const loading = page.documentListeners.DOMContentLoaded();
+    assert.match(page.status.textContent, /Loading your registrations/i);
+
+    resolveList(jsonResponse(200, []));
+    await loading;
+    assert.match(page.status.textContent, /No registrations yet/i);
+    assert.strictEqual(page.list.children.length, 0);
+  });
+
+  it('renders only the API-provided registrations and cancels with confirmation', async () => {
+    let listRequests = 0;
+    const calls = [];
+    const decisions = [false, true];
+    const page = await loadMyEventsFrontend(async (url, options) => {
+      calls.push({ url, options });
+      if (url === '/api/registrations' && !options?.method) {
+        listRequests += 1;
+        return jsonResponse(200, listRequests === 1 ? [registration] : []);
+      }
+      if (url === `/api/registrations/${registration.registration_id}` && options.method === 'DELETE') {
+        return jsonResponse(204, null);
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    }, () => decisions.shift());
+    await page.documentListeners.DOMContentLoaded();
+
+    assert.strictEqual(page.list.children.length, 1);
+    assert.match(collectText(page.list.children[0]), /Accessible Workshop/);
+    assert.match(collectText(page.list.children[0]), /Community Hall/);
+    const cancelButton = page.list.children[0].children.find((child) => child.tagName === 'BUTTON');
+    assert.ok(cancelButton);
+    await cancelButton.listeners.click();
+    assert.strictEqual(calls.some((call) => call.options?.method === 'DELETE'), false);
+
+    await cancelButton.listeners.click();
+    assert.ok(calls.some((call) => call.url === '/api/registrations'));
+    const deletion = calls.find((call) => call.options?.method === 'DELETE');
+    assert.strictEqual(deletion.url, `/api/registrations/${registration.registration_id}`);
+    assert.strictEqual(deletion.options.credentials, 'same-origin');
+    assert.match(page.status.textContent, /cancelled successfully/i);
+    assert.strictEqual(page.list.children.length, 0);
+    assert.ok(calls.every((call) => call.options.credentials === 'same-origin'));
+  });
+
+  it('shows authentication, authorization, and load-error feedback without rendering private data', async () => {
+    for (const [statusCode, expected] of [
+      [401, /log in/i],
+      [403, /student account/i],
+      [500, /could not load/i],
+    ]) {
+      const page = await loadMyEventsFrontend(async () => jsonResponse(statusCode, {
+        error: 'private registration details',
+      }));
+      await page.documentListeners.DOMContentLoaded();
+      assert.match(page.status.textContent, expected);
+      assert.strictEqual(page.list.children.length, 0);
+      assert.doesNotMatch(page.status.textContent, /private registration details/i);
+    }
+  });
+
+  it('reports a denied cancellation without hiding the registration', async () => {
+    const page = await loadMyEventsFrontend(async (url, options) => {
+      if (url === '/api/registrations' && !options?.method) {
+        return jsonResponse(200, [registration]);
+      }
+      if (options?.method === 'DELETE') {
+        return jsonResponse(403, { error: 'Not authorized to cancel this registration' });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    await page.documentListeners.DOMContentLoaded();
+    const cancelButton = page.list.children[0].children.find((child) => child.tagName === 'BUTTON');
+
+    await cancelButton.listeners.click();
+
+    assert.match(page.status.textContent, /not authorized/i);
+    assert.strictEqual(page.list.children.length, 1);
   });
 });

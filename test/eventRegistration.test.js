@@ -114,6 +114,37 @@ describe('AC-13: Exercise 3 automated tests for registration business rules', ()
     assert.match(res.body.error, /full/i);
   });
 
+  it('AC-6, AC-19: lists only the authenticated student registrations', async () => {
+    const firstEventId = createEvent('Student One Event', 20);
+    const secondEventId = createEvent('Student Two Event', 20);
+    const firstRegistration = await student1.post(`/api/events/${firstEventId}/register`);
+    const secondRegistration = await student2.post(`/api/events/${secondEventId}/register`);
+    assert.strictEqual(firstRegistration.status, 201);
+    assert.strictEqual(secondRegistration.status, 201);
+
+    const response = await student1.get(`/api/registrations?userId=${student2Id}`);
+
+    assert.strictEqual(response.status, 200);
+    assert.deepStrictEqual(response.body.map((registration) => registration.event_id), [firstEventId]);
+    assert.strictEqual(response.body[0].registration_id, firstRegistration.body.id);
+    assert.strictEqual(response.body[0].title, 'Student One Event');
+  });
+
+  it('AC-19: denies anonymous and organizer access to student registrations', async () => {
+    const anonymous = await request(app).get('/api/registrations');
+    assert.strictEqual(anonymous.status, 401);
+
+    const organizer = request.agent(app);
+    const registration = await organizer
+      .post('/api/auth/register')
+      .send({ email: 'registration-organizer@example.com', password: 'password1234' });
+    assert.strictEqual(registration.status, 201);
+    db.prepare("UPDATE users SET role = 'organizer' WHERE id = ?").run(registration.body.id);
+
+    const forbidden = await organizer.get('/api/registrations');
+    assert.strictEqual(forbidden.status, 403);
+  });
+
   it('AC-6, AC-23: should allow owner to cancel registration with 204', async () => {
     const eventId = createEvent('Cancel Test', 50);
     const regRes = await student1.post(`/api/events/${eventId}/register`);

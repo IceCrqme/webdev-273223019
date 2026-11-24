@@ -126,3 +126,11 @@ One entry per agent session, newest at the bottom. Be honest: what went wrong is
 - Implementation: Added `public/login.html`, `public/register.html`, and shared `public/auth.js`; added responsive auth styling and navigation on the home, login, register, and organizer pages. Login checks `/api/auth/me` and routes students to events and organizers to the dashboard. Registration sends only email/password and reports success. No backend/API changes, local storage, or secrets.
 - Traceability: Linked AC-2 to `test/frontend.test.js` and AC-14 to `test/auth.test.js` and `test/frontend.test.js`; updated the Slice 1 status to reflect the email/password UI while retaining Google OAuth and protected account features as incomplete.
 - Verification: Focused frontend tests pass 27/27. `npm test` passes all 85 Mocha tests, and the legacy backend smoke checks pass. Exercise 1 MCP conformance passes 12/12. `git diff --check` passes.
+
+## 2026-11-24 · AC-6/AC-19 student My Events
+
+- Goal: Show a signed-in student's own event registrations and allow cancellation without trusting browser-supplied identity.
+- TDD Red: Added temporary-SQLite API tests and fake-DOM frontend tests first. The focused API run had 11 passing and 2 failing tests because the registrations list endpoint was missing; the frontend run had 27 passing and 4 failing My Events tests because the page and script were missing.
+- Implementation: Added `GET /api/registrations`, guarded by database-backed student role middleware and using the authenticated user's ID from the session lookup. Added a parameterized service query, responsive `public/my-events.html` and `public/my-events.js`, same-origin reads/cancellation, confirmation, accessible loading/empty/error/success feedback, and navigation links. Cancellation continues through the existing owner-checked endpoint. No schema or dependency changes.
+- Traceability: Linked AC-6 to `test/eventRegistration.test.js` and `test/frontend.test.js`; linked AC-19 to `test/auth.test.js`, `test/eventRegistration.test.js`, and `test/frontend.test.js`. Updated the Slice 1 status.
+- Verification: Focused registration API tests pass 13/13 and frontend tests pass 32/32. `npm test` passes all 92 Mocha tests and the legacy backend smoke checks. Exercise 1 MCP conformance passes 12/12. `git diff --check` passes.

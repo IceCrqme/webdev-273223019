@@ -132,6 +132,27 @@ router.delete(
   }
 );
 
+router.get(
+  '/registrations',
+  loadAuthenticatedUser,
+  requireRole('student'),
+  async (req, res) => {
+    try {
+      const registrations = await eventService.getUserRegistrations(
+        req.authenticatedUser.id
+      );
+      res.json(registrations);
+    } catch (error) {
+      if (error.message === 'INVALID_INPUT') {
+        return res.status(400).json({ error: 'Invalid input' });
+      }
+
+      console.error('Registration list error:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+
 router.post('/events/:eventId/register', async (req, res) => {
   try {
     if (!req.session || !req.session.userId) {

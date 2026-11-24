@@ -268,6 +268,18 @@ h1 {
   list-style: none;
 }
 
+.my-events-list {
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.my-event-card h2 {
+  margin: 0 0 var(--space-2);
+  font-size: 1.2rem;
+}
+
 .organizer-event-card h3 {
   margin: 0 0 var(--space-2);
   font-size: 1.2rem;

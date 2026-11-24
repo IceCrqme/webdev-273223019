@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>My Events | Club Events</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="page-header">
+        <p class="eyebrow">Club Events</p>
+        <h1>My Events</h1>
+      </header>
+
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/">Events</a>
+        <a href="/login.html">Log in</a>
+        <a href="/register.html">Register</a>
+        <a href="/organizer.html">Organizer Dashboard</a>
+      </nav>
+
+      <p id="my-events-status" class="status" role="status" aria-live="polite">
+        Your registrations will appear here.
+      </p>
+      <ul id="my-events-list" class="event-list my-events-list" aria-label="Your event registrations"></ul>
+    </main>
+    <script src="/my-events.js"></script>
+  </body>
+</html>

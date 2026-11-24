@@ -284,6 +284,26 @@ async function cancelRegistration(userId, registrationId) {
   return { success: true };
 }
 
+async function getUserRegistrations(userId) {
+  if (!isValidId(userId)) {
+    throw new Error('INVALID_INPUT');
+  }
+
+  return db.prepare(`
+    SELECT
+      r.id AS registration_id,
+      e.id AS event_id,
+      e.title,
+      e.description,
+      e.date,
+      e.location
+    FROM registrations r
+    JOIN events e ON e.id = r.event_id
+    WHERE r.user_id = ?
+    ORDER BY e.date ASC
+  `).all(userId);
+}
+
 module.exports = {
   getUpcomingEvents,
   getEventDetails,
@@ -293,5 +313,6 @@ module.exports = {
   updateEvent,
   deleteEvent,
   registerForEvent,
-  cancelRegistration
+  cancelRegistration,
+  getUserRegistrations
 };
