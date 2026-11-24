@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Organizer Dashboard | Club Events</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="page-header">
+        <p class="eyebrow">Club Events</p>
+        <h1>Organizer Dashboard</h1>
+        <p>Create and manage your club events.</p>
+        <a href="/">View upcoming events</a>
+      </header>
+
+      <p id="organizer-status" class="status" role="status" aria-live="polite">
+        Checking your organizer access...
+      </p>
+
+      <div class="organizer-layout">
+        <section class="organizer-panel" aria-labelledby="event-form-heading">
+          <h2 id="event-form-heading">Create an event</h2>
+          <form id="event-form" novalidate>
+            <label for="event-title">Title</label>
+            <input id="event-title" name="title" type="text" required>
+
+            <label for="event-description">Description</label>
+            <textarea id="event-description" name="description" rows="4" required></textarea>
+
+            <label for="event-date">Date and time</label>
+            <input id="event-date" name="date" type="datetime-local" required>
+
+            <label for="event-location">Location</label>
+            <input id="event-location" name="location" type="text" required>
+
+            <label for="event-capacity">Capacity</label>
+            <input id="event-capacity" name="capacity" type="number" min="1" step="1" required>
+
+            <div class="organizer-form-actions">
+              <button id="event-submit" class="register-button" type="submit">Create event</button>
+              <button id="cancel-edit" class="secondary-button" type="button" hidden>Cancel edit</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="organizer-events-panel" aria-labelledby="organizer-events-heading">
+          <h2 id="organizer-events-heading">Manage events</h2>
+          <ul id="organizer-events" class="event-list organizer-event-list" aria-label="Events you can manage"></ul>
+        </section>
+      </div>
+    </main>
+
+    <script src="/organizer.js"></script>
+  </body>
+</html>

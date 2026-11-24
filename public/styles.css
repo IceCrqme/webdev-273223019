@@ -122,9 +122,108 @@ h1 {
   outline-offset: 3px;
 }
 
+.organizer-layout {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.organizer-panel,
+.organizer-events-panel {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: var(--space-5);
+}
+
+.organizer-panel h2,
+.organizer-events-panel h2 {
+  margin: 0 0 var(--space-4);
+  font-size: 1.25rem;
+}
+
+#event-form {
+  display: grid;
+  gap: var(--space-2);
+}
+
+#event-form label {
+  margin-top: var(--space-2);
+  font-weight: 700;
+}
+
+#event-form input,
+#event-form textarea {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text);
+  background: #fff;
+  font: inherit;
+}
+
+#event-form textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+#event-form input:focus-visible,
+#event-form textarea:focus-visible,
+.secondary-button:focus-visible {
+  outline: 3px solid #111827;
+  outline-offset: 2px;
+}
+
+.organizer-form-actions,
+.organizer-event-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.secondary-button {
+  min-height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem;
+  padding: 0.625rem var(--space-4);
+  color: var(--color-text);
+  background: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondary-button:hover {
+  background: #eef1f7;
+}
+
+.organizer-event-list {
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.organizer-event-card h3 {
+  margin: 0 0 var(--space-2);
+  font-size: 1.2rem;
+}
+
+.organizer-event-card .organizer-event-actions {
+  margin-top: var(--space-4);
+}
+
 @media (min-width: 768px) {
   .event-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .organizer-layout {
+    grid-template-columns: minmax(16rem, 0.8fr) minmax(0, 1.2fr);
+    align-items: start;
   }
 }
 

@@ -10,6 +10,7 @@ function createNode(tagName = 'div') {
     tagName: tagName.toUpperCase(),
     textContent: '',
     innerHTML: '',
+    value: '',
     disabled: false,
     className: '',
     children: [],
@@ -52,6 +53,49 @@ function createFakeDocument() {
   return { document, status, list };
 }
 
+function createOrganizerDocument() {
+  const status = createNode('div');
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
+  const list = createNode('ul');
+  const form = createNode('form');
+  const fields = {
+    title: createNode('input'),
+    description: createNode('textarea'),
+    date: createNode('input'),
+    location: createNode('input'),
+    capacity: createNode('input'),
+  };
+  const cancelEdit = createNode('button');
+  const elements = {
+    '#organizer-status': status,
+    '#organizer-events': list,
+    '#event-form': form,
+    '#event-title': fields.title,
+    '#event-description': fields.description,
+    '#event-date': fields.date,
+    '#event-location': fields.location,
+    '#event-capacity': fields.capacity,
+    '#cancel-edit': cancelEdit,
+  };
+
+  return {
+    document: {
+      body: createNode('body'),
+      createElement: createNode,
+      querySelector(selector) {
+        return elements[selector] || null;
+      },
+      addEventListener() {},
+    },
+    status,
+    list,
+    form,
+    fields,
+    cancelEdit,
+  };
+}
+
 async function loadFrontend(fetchImpl) {
   const appPath = path.join(__dirname, '../public/app.js');
   const appSource = fs.readFileSync(appPath, 'utf8');
@@ -65,6 +109,22 @@ async function loadFrontend(fetchImpl) {
 
   vm.runInContext(appSource, context);
   return { ...fake, api: context.window.ClubEvents };
+}
+
+async function loadOrganizerFrontend(fetchImpl, confirmImpl = () => true) {
+  const appPath = path.join(__dirname, '../public/organizer.js');
+  const appSource = fs.readFileSync(appPath, 'utf8');
+  const fake = createOrganizerDocument();
+  const context = vm.createContext({
+    window: { confirm: confirmImpl },
+    document: fake.document,
+    fetch: fetchImpl,
+    console,
+    Date,
+  });
+
+  vm.runInContext(appSource, context);
+  return { ...fake, api: context.window.OrganizerDashboard };
 }
 
 function jsonResponse(status, body) {
@@ -368,5 +428,333 @@ describe('Exercise 3: AC-26 frontend event states', () => {
 
     assert.match(appSource, /\/api\/events/);
     assert.match(appSource, /\/api\/events\/\$\{eventId\}\/register/);
+  });
+});
+
+describe('AC-5, AC-8: Organizer dashboard frontend', () => {
+  let app;
+  let tmpDir;
+  let originalDbPath;
+  let originalSessionSecret;
+
+  before(() => {
+    originalDbPath = process.env.DB_PATH;
+    originalSessionSecret = process.env.SESSION_SECRET;
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'club-events-organizer-ui-test-'));
+    process.env.DB_PATH = path.join(tmpDir, 'test.db');
+    process.env.SESSION_SECRET = 'organizer-ui-test-secret';
+    require('../database/init');
+    app = require('../src/app');
+  });
+
+  after(() => {
+    const db = require('../src/data/db');
+    if (db) db.close();
+    if (originalDbPath === undefined) {
+      delete process.env.DB_PATH;
+    } else {
+      process.env.DB_PATH = originalDbPath;
+    }
+    if (originalSessionSecret === undefined) {
+      delete process.env.SESSION_SECRET;
+    } else {
+      process.env.SESSION_SECRET = originalSessionSecret;
+    }
+    if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  const event = {
+    id: 12,
+    title: 'Accessible Workshop',
+    description: 'Build something together.',
+    date: '2031-04-05T18:30:00.000Z',
+    location: 'Community Hall',
+    capacity: 24,
+    available_places: 17,
+    organizer_id: 8,
+  };
+
+  function authResponses(events = [event]) {
+    return async (url, options) => {
+      if (url === '/api/auth/me') {
+        return jsonResponse(200, { id: 8, role: 'organizer' });
+      }
+      if (url === '/api/organizer/csrf-token') {
+        return jsonResponse(200, { csrfToken: 'session-token-123' });
+      }
+      if (url === '/api/organizer/events' && !options?.method) {
+        return jsonResponse(200, events);
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    };
+  }
+
+  it('serves the organizer page and its script', async () => {
+    const page = await request(app).get('/organizer.html');
+    assert.strictEqual(page.status, 200);
+    assert.match(page.text, /Organizer Dashboard/);
+    assert.match(page.text, /aria-live="polite"/);
+
+    const script = await request(app).get('/organizer.js');
+    assert.strictEqual(script.status, 200);
+    assert.match(script.headers['content-type'], /javascript/);
+  });
+
+  it('verifies organizer role and renders a labeled event management list', async () => {
+    const calls = [];
+    const { api, list, status } = await loadOrganizerFrontend(async (url, options) => {
+      calls.push({ url, options });
+      return authResponses() (url, options);
+    });
+
+    await api.initialize();
+
+    assert.deepEqual(calls.map((call) => call.url), [
+      '/api/auth/me',
+      '/api/organizer/csrf-token',
+      '/api/organizer/events',
+    ]);
+    assert.ok(calls.every((call) => call.options.credentials === 'same-origin'));
+    assert.strictEqual(list.children.length, 1);
+    assert.match(collectText(list.children[0]), /Accessible Workshop/);
+    assert.match(collectText(list.children[0]), /17 places available/);
+    assert.strictEqual(status.attributes.role, 'status');
+    assert.strictEqual(status.attributes['aria-live'], 'polite');
+  });
+
+  it('shows edit and delete controls only for events owned by the current organizer', async () => {
+    const events = [
+      event,
+      { ...event, id: 13, title: 'Another organizer event', organizer_id: 9 },
+      { ...event, id: 14, title: 'Legacy event', organizer_id: null },
+    ];
+    const { api, list } = await loadOrganizerFrontend(async (url, options) => {
+      if (url === '/api/auth/me') return jsonResponse(200, { id: 8, role: 'organizer' });
+      if (url === '/api/organizer/csrf-token') return jsonResponse(200, { csrfToken: 'session-token-123' });
+      if (url === '/api/organizer/events' && !options?.method) return jsonResponse(200, events);
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    await api.initialize();
+    assert.strictEqual(list.children.length, 3);
+
+    const ownActions = list.children[0].children.find(
+      (node) => node.className === 'organizer-event-actions'
+    );
+    assert.ok(ownActions);
+
+    for (const readOnlyEvent of list.children.slice(1)) {
+      assert.strictEqual(
+        readOnlyEvent.children.some((node) => node.className === 'organizer-event-actions'),
+        false
+      );
+      assert.match(collectText(readOnlyEvent), /read.only/i);
+    }
+  });
+
+  it('shows loading and empty states for the organizer list', async () => {
+    let resolveList;
+    let markListStarted;
+    const pendingList = new Promise((resolve) => { resolveList = resolve; });
+    const listStarted = new Promise((resolve) => { markListStarted = resolve; });
+    const { api, status, list } = await loadOrganizerFrontend((url, options) => {
+      if (url === '/api/auth/me') return Promise.resolve(jsonResponse(200, { id: 8, role: 'organizer' }));
+      if (url === '/api/organizer/csrf-token') return Promise.resolve(jsonResponse(200, { csrfToken: 'session-token-123' }));
+      if (url === '/api/organizer/events' && !options?.method) {
+        markListStarted();
+        return pendingList;
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    const loading = api.initialize();
+    await listStarted;
+    assert.match(status.textContent, /Loading/i);
+    resolveList(jsonResponse(200, []));
+    await loading;
+    assert.match(status.textContent, /No events/i);
+    assert.strictEqual(list.children.length, 0);
+  });
+
+  it('blocks anonymous users and students before loading the organizer token or list', async () => {
+    const anonymousCalls = [];
+    const anonymous = await loadOrganizerFrontend(async (url) => {
+      anonymousCalls.push(url);
+      return jsonResponse(401, { error: 'Not authenticated' });
+    });
+    await anonymous.api.initialize();
+    assert.match(anonymous.status.textContent, /log in/i);
+    assert.deepEqual(anonymousCalls, ['/api/auth/me']);
+
+    const studentCalls = [];
+    const student = await loadOrganizerFrontend(async (url) => {
+      studentCalls.push(url);
+      return jsonResponse(200, { id: 9, role: 'student' });
+    });
+    await student.api.initialize();
+    assert.match(student.status.textContent, /organizer/i);
+    assert.deepEqual(studentCalls, ['/api/auth/me']);
+  });
+
+  it('creates events with same-origin credentials and the session CSRF header', async () => {
+    const calls = [];
+    const createdEvent = { ...event, id: 13, title: 'New Workshop' };
+    const { api, form, fields, status } = await loadOrganizerFrontend(async (url, options) => {
+      calls.push({ url, options });
+      if (url === '/api/auth/me') return jsonResponse(200, { id: 8, role: 'organizer' });
+      if (url === '/api/organizer/csrf-token') return jsonResponse(200, { csrfToken: 'session-token-123' });
+      if (url === '/api/organizer/events' && !options?.method) return jsonResponse(200, []);
+      if (url === '/api/organizer/events' && options.method === 'POST') {
+        return jsonResponse(201, createdEvent);
+      }
+      if (url === '/api/organizer/events' && !options.method) return jsonResponse(200, [createdEvent]);
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    await api.initialize();
+    fields.title.value = 'New Workshop';
+    fields.description.value = 'A new event description.';
+    fields.date.value = '2031-04-05T18:30';
+    fields.location.value = 'Community Hall';
+    fields.capacity.value = '24';
+    const submittedDate = new Date(fields.date.value).toISOString();
+    await form.listeners.submit({ preventDefault() {} });
+
+    const createCall = calls.find((call) => call.options?.method === 'POST');
+    assert.strictEqual(createCall.options.credentials, 'same-origin');
+    assert.strictEqual(createCall.options.headers['X-CSRF-Token'], 'session-token-123');
+    assert.deepEqual(JSON.parse(createCall.options.body), {
+      title: 'New Workshop',
+      description: 'A new event description.',
+      date: submittedDate,
+      location: 'Community Hall',
+      capacity: 24,
+    });
+    assert.match(status.textContent, /created/i);
+  });
+
+  it('reports a successful save when the following event-list refresh fails', async () => {
+    let listRequests = 0;
+    const { api, form, fields, status } = await loadOrganizerFrontend(async (url, options) => {
+      if (url === '/api/auth/me') return jsonResponse(200, { id: 8, role: 'organizer' });
+      if (url === '/api/organizer/csrf-token') return jsonResponse(200, { csrfToken: 'session-token-123' });
+      if (url === '/api/organizer/events' && !options?.method) {
+        listRequests += 1;
+        return listRequests === 1
+          ? jsonResponse(200, [])
+          : jsonResponse(500, { error: 'Internal server error' });
+      }
+      if (url === '/api/organizer/events' && options.method === 'POST') {
+        return jsonResponse(201, event);
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    await api.initialize();
+    fields.title.value = 'Saved Workshop';
+    fields.description.value = 'A saved description.';
+    fields.date.value = '2031-04-05T18:30';
+    fields.location.value = 'Community Hall';
+    fields.capacity.value = '24';
+    await form.listeners.submit({ preventDefault() {} });
+
+    assert.match(status.textContent, /created successfully/i);
+    assert.match(status.textContent, /could not refresh/i);
+  });
+
+  it('edits an event using PUT and forwards the CSRF token', async () => {
+    const calls = [];
+    const { api, list, form, fields, status } = await loadOrganizerFrontend(async (url, options) => {
+      calls.push({ url, options });
+      if (url === '/api/auth/me') return jsonResponse(200, { id: 8, role: 'organizer' });
+      if (url === '/api/organizer/csrf-token') return jsonResponse(200, { csrfToken: 'session-token-123' });
+      if (url === '/api/organizer/events' && !options?.method) return jsonResponse(200, [event]);
+      if (url === `/api/organizer/events/${event.id}` && options.method === 'PUT') {
+        return jsonResponse(200, { ...event, title: 'Edited title' });
+      }
+      if (url === '/api/organizer/events' && !options.method) {
+        return jsonResponse(200, [{ ...event, title: 'Edited title' }]);
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    await api.initialize();
+    assert.strictEqual(list.children.length, 1, status.textContent);
+    const actions = list.children[0].children.find(
+      (node) => node.className === 'organizer-event-actions'
+    );
+    const editButton = actions.children.find((node) => node.textContent === 'Edit');
+    await editButton.listeners.click();
+    assert.strictEqual(fields.title.value, event.title);
+    fields.title.value = 'Edited title';
+    await form.listeners.submit({ preventDefault() {} });
+
+    const updateCall = calls.find((call) => call.options?.method === 'PUT');
+    assert.strictEqual(updateCall.options.credentials, 'same-origin');
+    assert.strictEqual(updateCall.options.headers['X-CSRF-Token'], 'session-token-123');
+    assert.match(updateCall.url, new RegExp(`/organizer/events/${event.id}$`));
+  });
+
+  it('asks before deletion and sends an authorized DELETE with CSRF protection', async () => {
+    const calls = [];
+    const decisions = [false, true];
+    const { api, list, status } = await loadOrganizerFrontend(
+      async (url, options) => {
+        calls.push({ url, options });
+        if (url === '/api/auth/me') return jsonResponse(200, { id: 8, role: 'organizer' });
+        if (url === '/api/organizer/csrf-token') return jsonResponse(200, { csrfToken: 'session-token-123' });
+        if (url === '/api/organizer/events' && !options?.method) return jsonResponse(200, [event]);
+        if (url === `/api/organizer/events/${event.id}` && options.method === 'DELETE') {
+          return jsonResponse(204, null);
+        }
+        if (url === '/api/organizer/events' && !options.method) return jsonResponse(200, []);
+        throw new Error(`Unexpected request: ${url}`);
+      },
+      () => decisions.shift()
+    );
+
+    await api.initialize();
+    assert.strictEqual(list.children.length, 1, status.textContent);
+    const actions = list.children[0].children.find(
+      (node) => node.className === 'organizer-event-actions'
+    );
+    const deleteButton = actions.children.find((node) => node.textContent === 'Delete');
+    await deleteButton.listeners.click();
+    assert.strictEqual(calls.some((call) => call.options?.method === 'DELETE'), false);
+
+    await deleteButton.listeners.click();
+    const deleteCall = calls.find((call) => call.options?.method === 'DELETE');
+    assert.strictEqual(deleteCall.options.credentials, 'same-origin');
+    assert.strictEqual(deleteCall.options.headers['X-CSRF-Token'], 'session-token-123');
+    assert.match(status.textContent, /deleted/i);
+  });
+
+  it('shows validation, authorization, and conflict feedback accessibly', async () => {
+    const invalid = await loadOrganizerFrontend(authResponses([]));
+    await invalid.api.initialize();
+    await invalid.form.listeners.submit({ preventDefault() {} });
+    assert.match(invalid.status.textContent, /required|valid/i);
+    assert.strictEqual(invalid.status.attributes['aria-live'], 'polite');
+
+    for (const [statusCode, expectedMessage] of [
+      [401, /log in|session/i],
+      [403, /permission|forbidden/i],
+      [409, /conflict|registration/i],
+    ]) {
+      const { api, form, fields, status } = await loadOrganizerFrontend(async (url, options) => {
+        if (url === '/api/auth/me') return jsonResponse(200, { id: 8, role: 'organizer' });
+        if (url === '/api/organizer/csrf-token') return jsonResponse(200, { csrfToken: 'session-token-123' });
+        if (url === '/api/organizer/events' && !options?.method) return jsonResponse(200, []);
+        if (options?.method === 'POST') return jsonResponse(statusCode, { error: 'Event conflicts with existing registrations' });
+        throw new Error(`Unexpected request: ${url}`);
+      });
+      await api.initialize();
+      fields.title.value = 'Valid Event';
+      fields.description.value = 'Description';
+      fields.date.value = '2031-04-05T18:30';
+      fields.location.value = 'Community Hall';
+      fields.capacity.value = '10';
+      await form.listeners.submit({ preventDefault() {} });
+      assert.match(status.textContent, expectedMessage);
+    }
   });
 });
