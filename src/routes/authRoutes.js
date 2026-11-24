@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authService = require('../services/authService');
+const { loadAuthenticatedUser } = require('../middleware/sessionAuthorization');
 
 /**
  * POST /api/auth/register
@@ -94,22 +95,8 @@ router.post('/logout', (req, res) => {
  * GET /api/auth/me
  * Returns the currently authenticated user's profile.
  */
-router.get('/me', async (req, res) => {
-  try {
-    if (!req.session || !req.session.userId) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
-    const user = await authService.getUserById(req.session.userId);
-    res.json(user);
-  } catch (error) {
-    if (error.message === 'User not found') {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    
-    console.error('Get profile error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
+router.get('/me', loadAuthenticatedUser, (req, res) => {
+  res.json(req.authenticatedUser);
 });
 
 module.exports = router;
