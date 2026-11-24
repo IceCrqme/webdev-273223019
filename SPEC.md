@@ -107,7 +107,7 @@ All MCP tools use the same service functions as the HTTP API, including authenti
 | Criterion | Test |
 | --- | --- |
 | AC-1 |  |
-| AC-2 |  |
+| AC-2 | test/frontend.test.js |
 | AC-3 |  |
 | AC-4 | test/frontend.test.js |
 | AC-5 |  |
@@ -119,7 +119,7 @@ All MCP tools use the same service functions as the HTTP API, including authenti
 | AC-11 | test/projectMcpTools.test.js |
 | AC-12 | test/auth.test.js |
 | AC-13 | test/eventRegistration.test.js |
-| AC-14 |  |
+| AC-14 | test/auth.test.js; test/frontend.test.js |
 | AC-15 |  |
 | AC-16 | test/frontend.test.js |
 | AC-17 | test/frontend.test.js |
@@ -143,8 +143,8 @@ During the second Gemini CLI session, the backend foundation was implemented usi
 
 Verification: node test_backend.js returned three sample events with available_places values of 100, 30, and 50. The Exercise 2 structural checker passed 32/32 checks.
 
-Current status: AC-4, AC-16, and AC-17 are covered by an integration test that authenticates a student, loads upcoming events from temporary SQLite through GET /api/events, and verifies the rendered event fields. AC-18 also has API-level evidence. AC-14, AC-15, and AC-19 remain unimplemented. Slice 1 is not complete.
+Current status: AC-4, AC-16, and AC-17 are covered by an integration test that authenticates a student, loads upcoming events from temporary SQLite through GET /api/events, and verifies the rendered event fields. AC-18 also has API-level evidence. AC-2 and AC-14 now have email/password authentication pages backed by the existing API, with frontend tests for validation, session credentials, and role-based login routing. Google OAuth (AC-3 and AC-15) and protected account features (AC-19) remain incomplete. Slice 1 is not complete.
 
 The second Gemini CLI session also ended because the model's daily quota was exhausted. The existing Exercise 1 MCP server was not modified.
 
-Next steps: implement email/password authentication, Google OAuth, protected account features, and the frontend; strengthen automated tests and verify all acceptance criteria.
+Next steps: implement Google OAuth, protected account features, and the remaining frontend; strengthen automated tests and verify all acceptance criteria.

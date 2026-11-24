@@ -96,6 +96,45 @@ function createOrganizerDocument() {
   };
 }
 
+function createAuthDocument(mode) {
+  const status = createNode('p');
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
+  const form = createNode('form');
+  form.dataset = { mode };
+  const fields = {
+    email: createNode('input'),
+    password: createNode('input'),
+  };
+  const submit = createNode('button');
+  const elements = {
+    '#auth-status': status,
+    '#auth-form': form,
+    '#auth-email': fields.email,
+    '#auth-password': fields.password,
+    '#auth-submit': submit,
+  };
+  const documentListeners = {};
+
+  return {
+    document: {
+      body: createNode('body'),
+      createElement: createNode,
+      querySelector(selector) {
+        return elements[selector] || null;
+      },
+      addEventListener(type, listener) {
+        documentListeners[type] = listener;
+      },
+    },
+    documentListeners,
+    status,
+    form,
+    fields,
+    submit,
+  };
+}
+
 async function loadFrontend(fetchImpl) {
   const appPath = path.join(__dirname, '../public/app.js');
   const appSource = fs.readFileSync(appPath, 'utf8');
@@ -125,6 +164,21 @@ async function loadOrganizerFrontend(fetchImpl, confirmImpl = () => true) {
 
   vm.runInContext(appSource, context);
   return { ...fake, api: context.window.OrganizerDashboard };
+}
+
+async function loadAuthFrontend(mode, fetchImpl) {
+  const appPath = path.join(__dirname, '../public/auth.js');
+  const appSource = fs.readFileSync(appPath, 'utf8');
+  const fake = createAuthDocument(mode);
+  const context = vm.createContext({
+    window: { location: { href: '' } },
+    document: fake.document,
+    fetch: fetchImpl,
+    console,
+  });
+
+  vm.runInContext(appSource, context);
+  return { ...fake, window: context.window };
 }
 
 function jsonResponse(status, body) {
@@ -756,5 +810,135 @@ describe('AC-5, AC-8: Organizer dashboard frontend', () => {
       await form.listeners.submit({ preventDefault() {} });
       assert.match(status.textContent, expectedMessage);
     }
+  });
+});
+
+describe('AC-2, AC-14: email and password authentication frontend', () => {
+  let app;
+
+  before(() => {
+    app = require('../src/app');
+  });
+
+  it('serves accessible login and registration pages with navigation and no role selector', async () => {
+    const login = await request(app).get('/login.html');
+    const register = await request(app).get('/register.html');
+    const script = await request(app).get('/auth.js');
+
+    assert.strictEqual(login.status, 200);
+    assert.match(login.text, /<h1[^>]*>Log in<\/h1>/i);
+    assert.match(login.text, /href="\/register\.html"/);
+    assert.match(login.text, /href="\/"/);
+    assert.match(login.text, /href="\/organizer\.html"/);
+    assert.match(login.text, /aria-live="polite"/);
+    assert.strictEqual(register.status, 200);
+    assert.match(register.text, /<h1[^>]*>Create an account<\/h1>/i);
+    assert.match(register.text, /href="\/login\.html"/);
+    assert.match(register.text, /href="\/"/);
+    assert.match(register.text, /href="\/organizer\.html"/);
+    assert.doesNotMatch(register.text, /name=["']role["']/i);
+    assert.strictEqual(script.status, 200);
+    assert.match(script.headers['content-type'], /javascript/);
+  });
+
+  it('validates login input before sending a request', async () => {
+    let calls = 0;
+    const page = await loadAuthFrontend('login', async () => {
+      calls += 1;
+      return jsonResponse(200, {});
+    });
+    page.documentListeners.DOMContentLoaded();
+
+    await page.form.listeners.submit({ preventDefault() {} });
+
+    assert.strictEqual(calls, 0);
+    assert.match(page.status.textContent, /valid email.*password/i);
+    assert.strictEqual(page.status.attributes['aria-live'], 'polite');
+  });
+
+  it('logs in with same-origin credentials, checks /me, and routes by server role', async () => {
+    for (const [role, destination] of [
+      ['student', '/'],
+      ['organizer', '/organizer.html'],
+    ]) {
+      const calls = [];
+      const page = await loadAuthFrontend('login', async (url, options) => {
+        calls.push({ url, options });
+        if (url === '/api/auth/login') {
+          return jsonResponse(200, { id: 8, role: 'forged-client-role' });
+        }
+        if (url === '/api/auth/me') {
+          return jsonResponse(200, { id: 8, role });
+        }
+        throw new Error(`Unexpected request: ${url}`);
+      });
+      page.documentListeners.DOMContentLoaded();
+      page.fields.email.value = 'user@example.com';
+      page.fields.password.value = 'securePassword123';
+      await page.form.listeners.submit({ preventDefault() {} });
+
+      assert.deepStrictEqual(calls.map((call) => call.url), [
+        '/api/auth/login',
+        '/api/auth/me',
+      ]);
+      assert.ok(calls.every((call) => call.options.credentials === 'same-origin'));
+      assert.deepStrictEqual(JSON.parse(calls[0].options.body), {
+        email: 'user@example.com',
+        password: 'securePassword123',
+      });
+      assert.strictEqual(page.window.location.href, destination);
+      assert.match(page.status.textContent, /signed in/i);
+    }
+  });
+
+  it('validates registration and creates a student account without sending a role', async () => {
+    const calls = [];
+    const page = await loadAuthFrontend('register', async (url, options) => {
+      calls.push({ url, options });
+      return jsonResponse(201, { id: 9, role: 'student' });
+    });
+    page.documentListeners.DOMContentLoaded();
+
+    await page.form.listeners.submit({ preventDefault() {} });
+    assert.strictEqual(calls.length, 0);
+    assert.match(page.status.textContent, /valid email.*password/i);
+
+    page.fields.email.value = 'new-user@example.com';
+    page.fields.password.value = 'short';
+    await page.form.listeners.submit({ preventDefault() {} });
+    assert.strictEqual(calls.length, 0);
+    assert.match(page.status.textContent, /at least 8 characters/i);
+
+    page.fields.password.value = 'newPassword123';
+    await page.form.listeners.submit({ preventDefault() {} });
+
+    assert.strictEqual(calls.length, 1);
+    assert.strictEqual(calls[0].url, '/api/auth/register');
+    assert.strictEqual(calls[0].options.credentials, 'same-origin');
+    assert.deepStrictEqual(JSON.parse(calls[0].options.body), {
+      email: 'new-user@example.com',
+      password: 'newPassword123',
+    });
+    assert.match(page.status.textContent, /account created/i);
+    assert.strictEqual(page.window.location.href, '');
+  });
+
+  it('shows loading and authentication errors accessibly', async () => {
+    let resolveLogin;
+    const pendingLogin = new Promise((resolve) => { resolveLogin = resolve; });
+    const page = await loadAuthFrontend('login', () => pendingLogin);
+    page.documentListeners.DOMContentLoaded();
+    page.fields.email.value = 'user@example.com';
+    page.fields.password.value = 'securePassword123';
+
+    const submission = page.form.listeners.submit({ preventDefault() {} });
+    assert.match(page.status.textContent, /signing in/i);
+    assert.strictEqual(page.submit.disabled, true);
+    resolveLogin(jsonResponse(401, { error: 'Invalid email or password' }));
+    await submission;
+
+    assert.match(page.status.textContent, /invalid email or password/i);
+    assert.strictEqual(page.status.attributes['aria-live'], 'polite');
+    assert.strictEqual(page.submit.disabled, false);
   });
 });

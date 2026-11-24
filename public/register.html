@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Register | Club Events</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="page-header">
+        <p class="eyebrow">Club Events</p>
+        <h1>Create an account</h1>
+      </header>
+
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/">Events</a>
+        <a href="/login.html">Log in</a>
+        <a href="/organizer.html">Organizer Dashboard</a>
+      </nav>
+
+      <section class="auth-panel" aria-labelledby="register-heading">
+        <h2 id="register-heading">Join Club Events</h2>
+        <p id="auth-status" class="status" role="status" aria-live="polite"></p>
+        <form id="auth-form" data-mode="register" novalidate>
+          <label for="auth-email">Email</label>
+          <input id="auth-email" name="email" type="email" autocomplete="email" required>
+
+          <label for="auth-password">Password</label>
+          <input id="auth-password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+          <p class="form-hint">Use at least 8 characters.</p>
+
+          <button id="auth-submit" class="register-button" type="submit">Create account</button>
+        </form>
+        <p>Already have an account? <a href="/login.html">Log in</a>.</p>
+      </section>
+    </main>
+    <script src="/auth.js"></script>
+  </body>
+</html>

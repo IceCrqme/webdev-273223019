@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Log in | Club Events</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="page-header">
+        <p class="eyebrow">Club Events</p>
+        <h1>Log in</h1>
+      </header>
+
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/">Events</a>
+        <a href="/register.html">Register</a>
+        <a href="/organizer.html">Organizer Dashboard</a>
+      </nav>
+
+      <section class="auth-panel" aria-labelledby="login-heading">
+        <h2 id="login-heading">Welcome back</h2>
+        <p id="auth-status" class="status" role="status" aria-live="polite"></p>
+        <form id="auth-form" data-mode="login" novalidate>
+          <label for="auth-email">Email</label>
+          <input id="auth-email" name="email" type="email" autocomplete="email" required>
+
+          <label for="auth-password">Password</label>
+          <input id="auth-password" name="password" type="password" autocomplete="current-password" required>
+
+          <button id="auth-submit" class="register-button" type="submit">Log in</button>
+        </form>
+        <p>New to Club Events? <a href="/register.html">Create an account</a>.</p>
+      </section>
+    </main>
+    <script src="/auth.js"></script>
+  </body>
+</html>
