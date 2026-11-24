@@ -4,4 +4,6 @@ const path = require('path');
 const dbPath = process.env.DB_PATH || path.join(__dirname, '../../database/club_events.db');
 const db = new Database(dbPath);
 
+db.pragma('foreign_keys = ON');
+
 module.exports = db;

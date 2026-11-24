@@ -4,6 +4,8 @@ const path = require('path');
 const dbPath = process.env.DB_PATH || path.join(__dirname, 'club_events.db');
 const db = new Database(dbPath);
 
+db.pragma('foreign_keys = ON');
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,6 +23,7 @@ db.exec(`
     date DATETIME NOT NULL,
     location TEXT NOT NULL,
     capacity INTEGER NOT NULL,
+    organizer_id INTEGER REFERENCES users(id),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
