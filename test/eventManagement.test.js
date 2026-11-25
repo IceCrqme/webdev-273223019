@@ -12,6 +12,8 @@ const modulePaths = [
   '../src/services/eventService',
   '../src/routes/authRoutes',
   '../src/routes/eventRoutes',
+  '../src/services/geminiClient',
+  '../src/services/eventDescriptionService',
   '../src/middleware/sessionAuthorization',
   '../src/middleware/csrfProtection',
 ].map((modulePath) => path.resolve(__dirname, modulePath));
@@ -27,6 +29,9 @@ describe('organizer event management API', () => {
   let secondStudent;
   let organizer;
   let otherOrganizer;
+  let generatedDescription;
+  let generatedError;
+  let generatedRequests;
 
   before(async () => {
     originalDbPath = process.env.DB_PATH;
@@ -39,6 +44,17 @@ describe('organizer event management API', () => {
     for (const modulePath of modulePaths) {
       delete require.cache[modulePath];
     }
+
+    const geminiClient = require('../src/services/geminiClient');
+    generatedDescription = 'A mocked description for the community event.';
+    generatedError = undefined;
+    generatedRequests = [];
+    geminiClient.isConfigured = () => true;
+    geminiClient.generate = async (input) => {
+      generatedRequests.push(input);
+      if (generatedError) throw generatedError;
+      return generatedDescription;
+    };
 
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'club-events-management-test-'));
     process.env.DB_PATH = path.join(tmpDir, 'test.db');
@@ -135,8 +151,9 @@ describe('organizer event management API', () => {
       .post('/api/organizer/events')
       .send(eventFields());
     const token = await request(app).get('/api/organizer/csrf-token');
+    const description = await request(app).post('/api/organizer/event-description');
 
-    for (const response of [list, detail, create, token]) {
+    for (const response of [list, detail, create, token, description]) {
       assert.strictEqual(response.status, 401);
     }
     assert.equal(token.body.csrfToken, undefined);
@@ -154,9 +171,59 @@ describe('organizer event management API', () => {
         organizerId: organizer.id,
         organizer_id: organizer.id,
       }));
+    const description = await student.agent
+      .post('/api/organizer/event-description')
+      .set('X-CSRF-Token', csrfToken)
+      .send({ title: 'Forged request', keywords: ['test'] });
 
     assert.strictEqual(list.status, 403);
     assert.strictEqual(create.status, 403);
+    assert.strictEqual(description.status, 403);
+  });
+
+  it('AC-9: generates a description through the authenticated, CSRF-protected organizer API', async () => {
+    const csrfToken = await getCsrfToken(organizer);
+    const response = await organizer.agent
+      .post('/api/organizer/event-description')
+      .set('X-CSRF-Token', csrfToken)
+      .send({ title: 'Community Garden Day', keywords: ['gardening', 'volunteers'] });
+
+    assert.strictEqual(response.status, 200);
+    assert.deepStrictEqual(response.body, {
+      description: generatedDescription,
+      fallback: false,
+    });
+    assert.strictEqual(generatedRequests.length, 1);
+    assert.strictEqual(generatedRequests[0].title, 'Community Garden Day');
+    assert.deepStrictEqual(generatedRequests[0].keywords, ['gardening', 'volunteers']);
+    assert.strictEqual(db.prepare('SELECT COUNT(*) AS count FROM events').get().count, 0);
+  });
+
+  it('AC-10: returns a manual-entry fallback when the mocked AI provider fails', async () => {
+    generatedError = new Error('mocked provider unavailable');
+    const csrfToken = await getCsrfToken(organizer);
+    const response = await organizer.agent
+      .post('/api/organizer/event-description')
+      .set('X-CSRF-Token', csrfToken)
+      .send({ title: 'Community Garden Day', keywords: ['gardening'] });
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.fallback, true);
+    assert.match(response.body.description, /Community Garden Day/);
+    assert.doesNotMatch(response.body.description, /<invalid/);
+  });
+
+  it('rejects invalid organizer description input and missing CSRF tokens', async () => {
+    const missingCsrf = await organizer.agent
+      .post('/api/organizer/event-description')
+      .send({ title: 'Community Garden Day', keywords: ['gardening'] });
+    const invalid = await organizer.agent
+      .post('/api/organizer/event-description')
+      .set('X-CSRF-Token', await getCsrfToken(organizer))
+      .send({ title: '', keywords: ['gardening'] });
+
+    assert.strictEqual(missingCsrf.status, 403);
+    assert.strictEqual(invalid.status, 400);
   });
 
   it('allows organizers to list, read, create, update, and delete any event', async () => {

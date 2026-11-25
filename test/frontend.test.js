@@ -61,21 +61,25 @@ function createOrganizerDocument() {
   const form = createNode('form');
   const fields = {
     title: createNode('input'),
+    keywords: createNode('input'),
     description: createNode('textarea'),
     date: createNode('input'),
     location: createNode('input'),
     capacity: createNode('input'),
   };
+  const generateDescription = createNode('button');
   const cancelEdit = createNode('button');
   const elements = {
     '#organizer-status': status,
     '#organizer-events': list,
     '#event-form': form,
     '#event-title': fields.title,
+    '#event-keywords': fields.keywords,
     '#event-description': fields.description,
     '#event-date': fields.date,
     '#event-location': fields.location,
     '#event-capacity': fields.capacity,
+    '#generate-description': generateDescription,
     '#cancel-edit': cancelEdit,
   };
 
@@ -92,6 +96,7 @@ function createOrganizerDocument() {
     list,
     form,
     fields,
+    generateDescription,
     cancelEdit,
   };
 }
@@ -592,10 +597,135 @@ describe('AC-5, AC-8: Organizer dashboard frontend', () => {
     assert.strictEqual(page.status, 200);
     assert.match(page.text, /Organizer Dashboard/);
     assert.match(page.text, /aria-live="polite"/);
+    assert.match(page.text, /id="event-keywords"/);
+    assert.match(page.text, /Generate with AI/);
 
     const script = await request(app).get('/organizer.js');
     assert.strictEqual(script.status, 200);
     assert.match(script.headers['content-type'], /javascript/);
+  });
+
+  it('AC-9: generates an editable description with same-origin session and CSRF credentials', async () => {
+    const calls = [];
+    const { api, fields, generateDescription, status } = await loadOrganizerFrontend(async (url, options) => {
+      calls.push({ url, options });
+      if (url === '/api/auth/me') return jsonResponse(200, { id: 8, role: 'organizer' });
+      if (url === '/api/organizer/csrf-token') return jsonResponse(200, { csrfToken: 'session-token-123' });
+      if (url === '/api/organizer/events' && !options?.method) return jsonResponse(200, []);
+      if (url === '/api/organizer/event-description' && options.method === 'POST') {
+        return jsonResponse(200, {
+          description: 'Join us for a day in the garden.',
+          fallback: false,
+        });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    await api.initialize();
+    fields.title.value = 'Community Garden Day';
+    fields.keywords.value = 'gardening, volunteers';
+    await generateDescription.listeners.click();
+
+    const generation = calls.find((call) => call.url === '/api/organizer/event-description');
+    assert.strictEqual(generation.options.credentials, 'same-origin');
+    assert.strictEqual(generation.options.headers['X-CSRF-Token'], 'session-token-123');
+    assert.deepStrictEqual(JSON.parse(generation.options.body), {
+      title: 'Community Garden Day',
+      keywords: ['gardening', 'volunteers'],
+    });
+    assert.strictEqual(fields.description.value, 'Join us for a day in the garden.');
+    assert.match(status.textContent, /description generated/i);
+    assert.strictEqual(fields.description.disabled, false);
+  });
+
+  it('AC-9: announces generation loading and restores the button after completion', async () => {
+    let resolveSuggestion;
+    const pendingSuggestion = new Promise((resolve) => { resolveSuggestion = resolve; });
+    const { api, fields, generateDescription, status } = await loadOrganizerFrontend((url, options) => {
+      if (url === '/api/auth/me') return Promise.resolve(jsonResponse(200, { id: 8, role: 'organizer' }));
+      if (url === '/api/organizer/csrf-token') return Promise.resolve(jsonResponse(200, { csrfToken: 'session-token-123' }));
+      if (url === '/api/organizer/events' && !options?.method) return Promise.resolve(jsonResponse(200, []));
+      if (url === '/api/organizer/event-description' && options.method === 'POST') return pendingSuggestion;
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    await api.initialize();
+    fields.title.value = 'Community Garden Day';
+    const generation = generateDescription.listeners.click();
+    assert.match(status.textContent, /generating/i);
+    assert.strictEqual(status.attributes['data-state'], 'loading');
+    assert.strictEqual(generateDescription.disabled, true);
+
+    resolveSuggestion(jsonResponse(200, { description: 'A generated description.', fallback: false }));
+    await generation;
+    assert.strictEqual(generateDescription.disabled, false);
+  });
+
+  it('AC-10: keeps manual description entry available when generation uses a fallback', async () => {
+    const { api, fields, generateDescription, status } = await loadOrganizerFrontend(async (url, options) => {
+      if (url === '/api/auth/me') return jsonResponse(200, { id: 8, role: 'organizer' });
+      if (url === '/api/organizer/csrf-token') return jsonResponse(200, { csrfToken: 'session-token-123' });
+      if (url === '/api/organizer/events' && !options?.method) return jsonResponse(200, []);
+      if (url === '/api/organizer/event-description' && options.method === 'POST') {
+        return jsonResponse(200, {
+          description: 'Join us for Community Garden Day. Topics include gardening.',
+          fallback: true,
+        });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    await api.initialize();
+    fields.title.value = 'Community Garden Day';
+    fields.keywords.value = 'gardening';
+    await generateDescription.listeners.click();
+
+    assert.match(fields.description.value, /Topics include gardening/);
+    assert.strictEqual(fields.description.disabled, false);
+    assert.match(status.textContent, /AI.*unavailable|manual/i);
+    assert.strictEqual(status.attributes['aria-live'], 'polite');
+  });
+
+  it('AC-10: reports generation errors without disabling manual entry', async () => {
+    const { api, fields, generateDescription, status } = await loadOrganizerFrontend(async (url, options) => {
+      if (url === '/api/auth/me') return jsonResponse(200, { id: 8, role: 'organizer' });
+      if (url === '/api/organizer/csrf-token') return jsonResponse(200, { csrfToken: 'session-token-123' });
+      if (url === '/api/organizer/events' && !options?.method) return jsonResponse(200, []);
+      if (url === '/api/organizer/event-description' && options.method === 'POST') {
+        return jsonResponse(500, { error: 'Could not generate an event description' });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    await api.initialize();
+    fields.title.value = 'Community Garden Day';
+    fields.description.value = 'I can still write this manually.';
+    await generateDescription.listeners.click();
+
+    assert.match(status.textContent, /could not generate/i);
+    assert.strictEqual(status.attributes['data-state'], 'error');
+    assert.strictEqual(fields.description.value, 'I can still write this manually.');
+    assert.strictEqual(fields.description.disabled, false);
+    assert.strictEqual(generateDescription.disabled, false);
+  });
+
+  it('does not replace an existing description unless the organizer confirms', async () => {
+    const { api, fields, generateDescription } = await loadOrganizerFrontend(async (url, options) => {
+      if (url === '/api/auth/me') return jsonResponse(200, { id: 8, role: 'organizer' });
+      if (url === '/api/organizer/csrf-token') return jsonResponse(200, { csrfToken: 'session-token-123' });
+      if (url === '/api/organizer/events' && !options?.method) return jsonResponse(200, []);
+      if (url === '/api/organizer/event-description' && options.method === 'POST') {
+        return jsonResponse(200, { description: 'Generated suggestion.', fallback: false });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    }, () => false);
+
+    await api.initialize();
+    fields.title.value = 'Community Garden Day';
+    fields.description.value = 'Organizer-written description.';
+    await generateDescription.listeners.click();
+
+    assert.strictEqual(fields.description.value, 'Organizer-written description.');
   });
 
   it('verifies organizer role and renders a labeled event management list', async () => {

@@ -114,8 +114,8 @@ All MCP tools use the same service functions as the HTTP API, including authenti
 | AC-6 | test/eventRegistration.test.js; test/frontend.test.js |
 | AC-7 | test/eventRegistration.test.js |
 | AC-8 |  |
-| AC-9 | test/eventDescriptionService.test.js |
-| AC-10 | test/eventDescriptionService.test.js |
+| AC-9 | test/eventDescriptionService.test.js; test/eventManagement.test.js; test/frontend.test.js |
+| AC-10 | test/eventDescriptionService.test.js; test/eventManagement.test.js; test/frontend.test.js |
 | AC-11 | test/projectMcpTools.test.js |
 | AC-12 | test/auth.test.js |
 | AC-13 | test/eventRegistration.test.js |
@@ -144,6 +144,8 @@ During the second Gemini CLI session, the backend foundation was implemented usi
 Verification: node test_backend.js returned three sample events with available_places values of 100, 30, and 50. The Exercise 2 structural checker passed 32/32 checks.
 
 Current status: AC-4, AC-16, and AC-17 are covered by an integration test that authenticates a student, loads upcoming events from temporary SQLite through GET /api/events, and verifies the rendered event fields. AC-18 also has API-level evidence. AC-2 and AC-14 have email/password authentication pages backed by the existing API. AC-6 and AC-19 now include a session-protected My Events page and student-scoped registration listing. Google OAuth (AC-3 and AC-15) and other protected account features remain incomplete. Slice 1 is not complete.
+
+AC-9 and AC-10 are implemented on the Organizer Dashboard. Organizers request suggestions through a session-authenticated, CSRF-protected endpoint; the existing AI service provides editable suggestions and deterministic fallbacks. The dashboard keeps manual entry enabled, asks before replacing existing text, and does not create or publish events during generation. Evidence: mocked API/provider tests in `test/eventManagement.test.js`, dashboard behavior tests in `test/frontend.test.js`, and service fallback/timeout tests in `test/eventDescriptionService.test.js`.
 
 The second Gemini CLI session also ended because the model's daily quota was exhausted. The existing Exercise 1 MCP server was not modified.
 

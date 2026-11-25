@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const eventService = require('../services/eventService');
+const { createEventDescriptionService } = require('../services/eventDescriptionService');
 const {
   loadAuthenticatedUser,
   requireRole,
@@ -11,6 +12,7 @@ const {
 } = require('../middleware/csrfProtection');
 
 const organizerAccess = [loadAuthenticatedUser, requireRole('organizer')];
+const eventDescriptionService = createEventDescriptionService();
 
 router.get('/events', async (req, res) => {
   try {
@@ -49,6 +51,33 @@ function handleOrganizerError(res, error, action) {
 }
 
 router.get('/organizer/csrf-token', ...organizerAccess, issueCsrfToken);
+
+router.post(
+  '/organizer/event-description',
+  ...organizerAccess,
+  requireCsrfToken,
+  async (req, res) => {
+    const { title, keywords } = req.body || {};
+    if (
+      typeof title !== 'string'
+      || !title.trim()
+      || !Array.isArray(keywords)
+      || keywords.some((keyword) => typeof keyword !== 'string')
+    ) {
+      return res.status(400).json({ error: 'Provide an event title and valid keywords' });
+    }
+
+    try {
+      const suggestion = await eventDescriptionService.suggestDescription({ title, keywords });
+      return res.json(suggestion);
+    } catch (error) {
+      if (error.message === 'INVALID_TITLE' || error.message === 'INVALID_KEYWORDS') {
+        return res.status(400).json({ error: 'Provide an event title and valid keywords' });
+      }
+      return res.status(500).json({ error: 'Could not generate an event description' });
+    }
+  }
+);
 
 router.get('/organizer/events', ...organizerAccess, async (req, res) => {
   try {

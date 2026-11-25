@@ -4,9 +4,11 @@
   const formElement = () => document.querySelector('#event-form');
   const formHeading = () => document.querySelector('#event-form-heading');
   const submitButton = () => document.querySelector('#event-submit');
+  const generateDescriptionButton = () => document.querySelector('#generate-description');
   const cancelEditButton = () => document.querySelector('#cancel-edit');
   const fields = {
     title: () => document.querySelector('#event-title'),
+    keywords: () => document.querySelector('#event-keywords'),
     description: () => document.querySelector('#event-description'),
     date: () => document.querySelector('#event-date'),
     location: () => document.querySelector('#event-location'),
@@ -264,6 +266,75 @@
     }
   }
 
+  async function generateDescription() {
+    const title = fields.title()?.value.trim();
+    const keywords = (fields.keywords()?.value || '')
+      .split(',')
+      .map((keyword) => keyword.trim())
+      .filter(Boolean);
+    if (!title) {
+      setStatus('Enter an event title before generating a description.', 'error');
+      return;
+    }
+    if (!csrfToken) {
+      setStatus('Your security token is missing. Reload the dashboard and try again.', 'error');
+      return;
+    }
+
+    const button = generateDescriptionButton();
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Generating...';
+    }
+    setStatus('Generating an editable description...', 'loading');
+
+    try {
+      const response = await request('/api/organizer/event-description', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken,
+        },
+        body: JSON.stringify({ title, keywords }),
+      });
+
+      if (!response.ok) {
+        await responseError(response, 'generate a description');
+        return;
+      }
+
+      const suggestion = await response.json();
+      if (
+        typeof suggestion.description !== 'string'
+        || !suggestion.description.trim()
+        || typeof suggestion.fallback !== 'boolean'
+      ) {
+        setStatus('Could not generate a description. You can still enter one manually.', 'error');
+        return;
+      }
+
+      const description = fields.description();
+      if (description.value.trim() && !window.confirm('Replace the existing description with this suggestion?')) {
+        setStatus('Existing description kept; generated suggestion was not applied.', 'success');
+        return;
+      }
+
+      description.value = suggestion.description;
+      if (suggestion.fallback) {
+        setStatus('AI is unavailable; a fallback suggestion is ready to edit, or you can write your own description.', 'error');
+      } else {
+        setStatus('Description generated. Review and edit it before creating the event.', 'success');
+      }
+    } catch (error) {
+      setStatus('Could not generate a description. You can still enter one manually.', 'error');
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = 'Generate with AI';
+      }
+    }
+  }
+
   async function deleteEvent(event) {
     if (!window.confirm(`Delete "${event.title}"? This cannot be undone.`)) {
       setStatus('Event deletion cancelled.', 'success');
@@ -299,6 +370,8 @@
   function wireForm() {
     const form = formElement();
     if (form) form.addEventListener('submit', submitEvent);
+    const generateButton = generateDescriptionButton();
+    if (generateButton) generateButton.addEventListener('click', generateDescription);
     const cancelButton = cancelEditButton();
     if (cancelButton) {
       cancelButton.addEventListener('click', () => {

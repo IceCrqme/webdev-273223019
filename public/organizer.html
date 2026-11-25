@@ -32,6 +32,15 @@
             <label for="event-title">Title</label>
             <input id="event-title" name="title" type="text" required>
 
+            <label for="event-keywords">Keywords for AI description (comma-separated)</label>
+            <input id="event-keywords" name="keywords" type="text" autocomplete="off">
+            <button
+              id="generate-description"
+              class="secondary-button"
+              type="button"
+              aria-describedby="organizer-status"
+            >Generate with AI</button>
+
             <label for="event-description">Description</label>
             <textarea id="event-description" name="description" rows="4" required></textarea>
 
