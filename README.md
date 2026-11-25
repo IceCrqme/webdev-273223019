@@ -14,6 +14,38 @@ By the end you hand in one working application: a backend and a frontend over a 
 
 The course setup page explains accounts, sign-in, free limits and what to do if something goes wrong.
 
+## Google sign-in setup
+
+Google sign-in uses the OpenID Connect Authorization Code flow. It stays disabled when any of
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, or `GOOGLE_REDIRECT_URI` is missing; email/password
+authentication continues to work.
+
+1. In Google Cloud Console, select or create a project and configure the OAuth consent screen
+   (Google Auth Platform **Branding** and **Audience**). Use the app's name and support email,
+   select the appropriate internal/external audience, and add your account under **Test users**
+   while the app is in testing.
+2. Under **Clients** / **Credentials**, create an OAuth client ID for a **Web application**.
+   The app requests the OpenID Connect `openid email profile` scopes.
+3. Add this exact **Authorized redirect URI** for local testing:
+   `http://localhost:3000/api/auth/google/callback`
+   For Codespaces or deployment, use the app's HTTPS origin followed by
+   `/api/auth/google/callback` (for example,
+   `https://<your-codespace-forwarded-host>/api/auth/google/callback`). The URI in Google
+   Cloud and `GOOGLE_REDIRECT_URI` must match exactly.
+4. Put the client ID, client secret, and exact redirect URI in the runtime environment as
+   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI`. For Codespaces, use
+   **Repository Settings → Secrets and variables → Codespaces**. Keep the client secret out
+   of source control and browser code. `SESSION_SECRET` is also required by the app.
+
+Manual verification: with the Google variables unset, start the app and confirm that email /
+password login still works and Google sign-in reports that it is unavailable. With a configured
+client and test user, use **Continue with Google** and confirm `/api/auth/me` reports a student.
+For account linking, sign in to a local account first, then use **link Google to your account**;
+confirm the existing account remains signed in. A first-time Google login whose verified email
+matches a local account must be rejected rather than linked; linking an identity already used
+by another account must also be rejected. Cancelling Google's consent should return to login
+with a cancellation message.
+
 ## What is already here
 
 | Path | What it is for |

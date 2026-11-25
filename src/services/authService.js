@@ -102,8 +102,95 @@ async function getUserById(id) {
   return user;
 }
 
+function findOrCreateGoogleUser({ subject, email, emailVerified }) {
+  if (
+    typeof subject !== 'string'
+    || !subject
+    || typeof email !== 'string'
+    || emailVerified !== true
+  ) {
+    throw new Error('INVALID_GOOGLE_IDENTITY');
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!isValidEmail(normalizedEmail)) {
+    throw new Error('INVALID_GOOGLE_IDENTITY');
+  }
+
+  const findOrCreate = db.transaction(() => {
+    const linkedUser = db.prepare(
+      'SELECT id, email, role FROM users WHERE google_id = ?'
+    ).get(subject);
+    if (linkedUser) return linkedUser;
+
+    const emailUser = db.prepare('SELECT id FROM users WHERE email = ?').get(normalizedEmail);
+    if (emailUser) throw new Error('GOOGLE_EMAIL_CONFLICT');
+
+    try {
+      const result = db.prepare(`
+        INSERT INTO users (email, password, google_id, role)
+        VALUES (?, NULL, ?, 'student')
+      `).run(normalizedEmail, subject);
+      return {
+        id: Number(result.lastInsertRowid),
+        email: normalizedEmail,
+        role: 'student',
+      };
+    } catch (error) {
+      if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        const concurrentUser = db.prepare(
+          'SELECT id, email, role FROM users WHERE google_id = ?'
+        ).get(subject);
+        if (concurrentUser) return concurrentUser;
+        throw new Error('GOOGLE_EMAIL_CONFLICT');
+      }
+      throw error;
+    }
+  });
+
+  return findOrCreate.immediate();
+}
+
+function linkGoogleAccount(userId, subject) {
+  if (!Number.isSafeInteger(userId) || userId <= 0 || typeof subject !== 'string' || !subject) {
+    throw new Error('INVALID_GOOGLE_IDENTITY');
+  }
+
+  const linkAccount = db.transaction(() => {
+    const user = db.prepare('SELECT id, email, role, google_id FROM users WHERE id = ?')
+      .get(userId);
+    if (!user) throw new Error('User not found');
+
+    const subjectOwner = db.prepare('SELECT id FROM users WHERE google_id = ?').get(subject);
+    if (subjectOwner && subjectOwner.id !== userId) {
+      throw new Error('GOOGLE_ACCOUNT_LINKED');
+    }
+    if (user.google_id && user.google_id !== subject) {
+      throw new Error('GOOGLE_ACCOUNT_ALREADY_LINKED');
+    }
+
+    if (!user.google_id) {
+      try {
+        db.prepare('UPDATE users SET google_id = ? WHERE id = ? AND google_id IS NULL')
+          .run(subject, userId);
+      } catch (error) {
+        if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+          throw new Error('GOOGLE_ACCOUNT_LINKED');
+        }
+        throw error;
+      }
+    }
+
+    return { id: user.id, email: user.email, role: user.role };
+  });
+
+  return linkAccount.immediate();
+}
+
 module.exports = {
   register,
   login,
-  getUserById
+  getUserById,
+  findOrCreateGoogleUser,
+  linkGoogleAccount,
 };

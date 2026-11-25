@@ -112,12 +112,14 @@ function createAuthDocument(mode) {
     password: createNode('input'),
   };
   const submit = createNode('button');
+  const googleLink = createNode('button');
   const elements = {
     '#auth-status': status,
     '#auth-form': form,
     '#auth-email': fields.email,
     '#auth-password': fields.password,
     '#auth-submit': submit,
+    '#google-link': googleLink,
   };
   const documentListeners = {};
 
@@ -137,6 +139,7 @@ function createAuthDocument(mode) {
     form,
     fields,
     submit,
+    googleLink,
   };
 }
 
@@ -199,15 +202,17 @@ async function loadOrganizerFrontend(fetchImpl, confirmImpl = () => true) {
   return { ...fake, api: context.window.OrganizerDashboard };
 }
 
-async function loadAuthFrontend(mode, fetchImpl) {
+async function loadAuthFrontend(mode, fetchImpl, locationSearch = '') {
   const appPath = path.join(__dirname, '../public/auth.js');
   const appSource = fs.readFileSync(appPath, 'utf8');
   const fake = createAuthDocument(mode);
   const context = vm.createContext({
-    window: { location: { href: '' } },
+    window: { location: { href: '', search: locationSearch } },
     document: fake.document,
     fetch: fetchImpl,
     console,
+    URLSearchParams,
+    URL,
   });
 
   vm.runInContext(appSource, context);
@@ -1005,6 +1010,8 @@ describe('AC-2, AC-14: email and password authentication frontend', () => {
     assert.match(login.text, /href="\/"/);
     assert.match(login.text, /href="\/organizer\.html"/);
     assert.match(login.text, /aria-live="polite"/);
+    assert.match(login.text, /id="google-sign-in"[^>]+href="\/api\/auth\/google"/);
+    assert.match(login.text, /id="google-link"[^>]+type="button"/);
     assert.strictEqual(register.status, 200);
     assert.match(register.text, /<h1[^>]*>Create an account<\/h1>/i);
     assert.match(register.text, /href="\/login\.html"/);
@@ -1114,6 +1121,50 @@ describe('AC-2, AC-14: email and password authentication frontend', () => {
     assert.match(page.status.textContent, /invalid email or password/i);
     assert.strictEqual(page.status.attributes['aria-live'], 'polite');
     assert.strictEqual(page.submit.disabled, false);
+  });
+
+  it('AC-3, AC-15: explains Google sign-in and linking outcomes accessibly', async () => {
+    for (const [result, message] of [
+      ['unavailable', /not configured/i],
+      ['denied', /cancelled/i],
+      ['invalid_state', /could not be verified/i],
+      ['conflict', /existing account/i],
+      ['link_conflict', /already linked/i],
+      ['link_requires_login', /sign in.*before linking/i],
+      ['linked', /linked securely/i],
+    ]) {
+      const page = await loadAuthFrontend('login', async () => jsonResponse(200, {}), `?google=${result}`);
+      page.documentListeners.DOMContentLoaded();
+      assert.match(page.status.textContent, message);
+      assert.strictEqual(page.status.attributes['aria-live'], 'polite');
+    }
+  });
+
+  it('AC-3: starts account linking only with same-origin credentials and a session CSRF token', async () => {
+    const calls = [];
+    const page = await loadAuthFrontend('login', async (url, options) => {
+      calls.push({ url, options });
+      if (url === '/api/auth/google/link/csrf-token') {
+        return jsonResponse(200, { csrfToken: 'session-csrf-token' });
+      }
+      if (url === '/api/auth/google/link' && options.method === 'POST') {
+        return jsonResponse(200, {
+          authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth?state=secure',
+        });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    page.documentListeners.DOMContentLoaded();
+
+    await page.googleLink.listeners.click();
+
+    assert.deepStrictEqual(calls.map((call) => call.url), [
+      '/api/auth/google/link/csrf-token',
+      '/api/auth/google/link',
+    ]);
+    assert.ok(calls.every((call) => call.options.credentials === 'same-origin'));
+    assert.strictEqual(calls[1].options.headers['X-CSRF-Token'], 'session-csrf-token');
+    assert.strictEqual(page.window.location.href, 'https://accounts.google.com/o/oauth2/v2/auth?state=secure');
   });
 });
 

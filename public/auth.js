@@ -4,12 +4,28 @@
   const emailElement = () => document.querySelector('#auth-email');
   const passwordElement = () => document.querySelector('#auth-password');
   const submitElement = () => document.querySelector('#auth-submit');
+  const googleLinkElement = () => document.querySelector('#google-link');
 
   function setStatus(message, state) {
     const status = statusElement();
     if (!status) return;
     status.textContent = message;
     status.setAttribute('data-state', state);
+  }
+
+  function showGoogleResult() {
+    const result = new URLSearchParams(window.location.search || '').get('google');
+    const messages = {
+      unavailable: ['Google sign-in is not configured. Email and password sign-in are still available.', 'error'],
+      denied: ['Google sign-in was cancelled.', 'error'],
+      invalid_state: ['Google sign-in could not be verified. Please try again.', 'error'],
+      conflict: ['That Google email belongs to an existing account. Sign in with email and password before linking Google.', 'error'],
+      link_conflict: ['That Google account is already linked to another account, or this account has a different Google identity.', 'error'],
+      link_requires_login: ['Sign in with email and password before linking a Google account.', 'error'],
+      linked: ['Google account linked securely to your signed-in account.', 'success'],
+      failed: ['Google sign-in could not be completed. Please try again.', 'error'],
+    };
+    if (messages[result]) setStatus(messages[result][0], messages[result][1]);
   }
 
   function validEmail(email) {
@@ -109,9 +125,66 @@
     }
   }
 
+  async function beginGoogleLink() {
+    const button = googleLinkElement();
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Preparing secure link...';
+    }
+    setStatus('Preparing a secure Google account link...', 'loading');
+
+    try {
+      const tokenResponse = await fetch('/api/auth/google/link/csrf-token', {
+        credentials: 'same-origin',
+      });
+      if (tokenResponse.status === 401) {
+        setStatus('Sign in with your existing account before linking Google.', 'error');
+        return;
+      }
+      if (!tokenResponse.ok) {
+        setStatus(await responseError(tokenResponse), 'error');
+        return;
+      }
+
+      const tokenBody = await tokenResponse.json();
+      if (typeof tokenBody.csrfToken !== 'string' || !tokenBody.csrfToken) {
+        setStatus('Could not verify this account-link request. Please try again.', 'error');
+        return;
+      }
+
+      const response = await fetch('/api/auth/google/link', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'X-CSRF-Token': tokenBody.csrfToken },
+      });
+      if (!response.ok) {
+        setStatus(await responseError(response), 'error');
+        return;
+      }
+
+      const body = await response.json();
+      const authorizationUrl = new URL(body.authorizationUrl);
+      if (authorizationUrl.origin !== 'https://accounts.google.com') {
+        setStatus('Could not verify the Google authorization destination.', 'error');
+        return;
+      }
+      window.location.href = authorizationUrl.toString();
+    } catch (error) {
+      setStatus('Could not start Google account linking. Please try again.', 'error');
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = 'Link Google to your account';
+      }
+    }
+  }
+
   function initialize() {
     const form = formElement();
     if (form) form.addEventListener('submit', submitAuthentication);
+    const googleLink = googleLinkElement();
+    if (googleLink) googleLink.addEventListener('click', beginGoogleLink);
+    showGoogleResult();
   }
 
   if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {

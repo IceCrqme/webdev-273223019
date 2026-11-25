@@ -53,6 +53,15 @@ body {
   font-weight: 700;
 }
 
+.auth-panel .auth-provider-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  text-decoration: none;
+}
+
 .auth-panel {
   width: min(100%, 32rem);
   margin: 0 auto;
