@@ -93,4 +93,69 @@ describe('Exercise 3: event description suggestions', () => {
     assert.strictEqual(result.fallback, true);
     assert.match(result.description, /Community Garden Day/);
   });
+
+  it('rejects invalid titles and keyword lists before calling the provider', async () => {
+    let calls = 0;
+    const service = createEventDescriptionService({
+      client: {
+        isConfigured: () => true,
+        generate: async () => {
+          calls += 1;
+          return 'Unused';
+        },
+      },
+    });
+
+    await assert.rejects(service.suggestDescription(null), { message: 'INVALID_TITLE' });
+    await assert.rejects(
+      service.suggestDescription({ title: '  ', keywords: [] }),
+      { message: 'INVALID_TITLE' }
+    );
+    await assert.rejects(
+      service.suggestDescription({ title: 'Event', keywords: ['valid', 42] }),
+      { message: 'INVALID_KEYWORDS' }
+    );
+    assert.strictEqual(calls, 0);
+  });
+
+  it('sanitizes fallback details and rejects blank or oversized suggestions', async () => {
+    const fallbackService = createEventDescriptionService({
+      client: { isConfigured: () => false, generate: async () => '' },
+    });
+    const fallback = await fallbackService.suggestDescription({
+      title: '  <Garden>   Day ',
+      keywords: ['  <plants>  ', '   '],
+    });
+    assert.deepStrictEqual(fallback, {
+      description: 'Join us for Garden Day. Topics include plants.',
+      fallback: true,
+    });
+    const noTopics = await fallbackService.suggestDescription({
+      title: 'Garden Day',
+      keywords: [],
+    });
+    assert.deepStrictEqual(noTopics, {
+      description: 'Join us for Garden Day.',
+      fallback: true,
+    });
+
+    for (const suggestion of ['', 'x'.repeat(2001)]) {
+      const service = createEventDescriptionService({
+        client: { isConfigured: () => true, generate: async () => suggestion },
+      });
+      assert.strictEqual((await service.suggestDescription(input)).fallback, true);
+    }
+  });
+
+  it('rejects invalid timeout and model client configuration', () => {
+    const validClient = { isConfigured: () => false, generate: async () => '' };
+    assert.throws(
+      () => createEventDescriptionService({ client: validClient, timeoutMs: 0 }),
+      { message: 'INVALID_TIMEOUT' }
+    );
+    assert.throws(
+      () => createEventDescriptionService({ client: { generate: async () => '' } }),
+      { message: 'INVALID_MODEL_CLIENT' }
+    );
+  });
 });

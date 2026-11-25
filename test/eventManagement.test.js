@@ -21,6 +21,7 @@ const modulePaths = [
 describe('organizer event management API', () => {
   let app;
   let db;
+  let eventService;
   let tmpDir;
   let originalDbPath;
   let originalSessionSecret;
@@ -63,6 +64,7 @@ describe('organizer event management API', () => {
     require('../database/init');
     app = require('../src/app');
     db = require('../src/data/db');
+    eventService = require('../src/services/eventService');
 
     student = await createUser('management-student@example.com');
     secondStudent = await createUser('management-second-student@example.com');
@@ -435,5 +437,78 @@ describe('organizer event management API', () => {
     assert.strictEqual(invalidRead.status, 400);
     assert.strictEqual(missingUpdate.status, 404);
     assert.strictEqual(missingDelete.status, 404);
+  });
+
+  it('AC-5: enforces event-service ID, organizer, and missing-event guards directly', async () => {
+    const created = await eventService.createEvent(organizer.id, eventFields());
+    const eventDetails = await eventService.getEventDetails(created.id);
+    assert.strictEqual(eventDetails.id, created.id);
+    assert.strictEqual(eventDetails.available_places, created.capacity);
+
+    await assert.rejects(eventService.getEventDetails(0), { message: 'INVALID_INPUT' });
+    await assert.rejects(eventService.getEventDetails(999999), { message: 'EVENT_NOT_FOUND' });
+    await assert.rejects(eventService.getOrganizerEvents(0), { message: 'INVALID_INPUT' });
+    await assert.rejects(eventService.getOrganizerEvents(999999), { message: 'FORBIDDEN' });
+    await assert.rejects(eventService.getOrganizerEvents(student.id), { message: 'FORBIDDEN' });
+    await assert.rejects(
+      eventService.getOrganizerEventDetails(organizer.id, 0),
+      { message: 'INVALID_INPUT' }
+    );
+    await assert.rejects(
+      eventService.getOrganizerEventDetails(organizer.id, 999999),
+      { message: 'EVENT_NOT_FOUND' }
+    );
+  });
+
+  it('AC-5: validates direct event-service writes and registration edge cases', async () => {
+    const validFields = eventFields();
+    await assert.rejects(eventService.createEvent(organizer.id, null), {
+      message: 'INVALID_INPUT',
+    });
+    await assert.rejects(eventService.createEvent(organizer.id, []), {
+      message: 'INVALID_INPUT',
+    });
+    await assert.rejects(
+      eventService.createEvent(organizer.id, eventFields({ date: '2026-02-30T12:00:00Z' })),
+      { message: 'INVALID_INPUT' }
+    );
+
+    await assert.rejects(eventService.updateEvent(organizer.id, 0, validFields), {
+      message: 'INVALID_INPUT',
+    });
+    await assert.rejects(eventService.updateEvent(organizer.id, 999999, validFields), {
+      message: 'EVENT_NOT_FOUND',
+    });
+    await assert.rejects(eventService.deleteEvent(organizer.id, 0), {
+      message: 'INVALID_INPUT',
+    });
+    await assert.rejects(eventService.deleteEvent(organizer.id, 999999), {
+      message: 'EVENT_NOT_FOUND',
+    });
+    await assert.rejects(eventService.registerForEvent(0, 1), { message: 'INVALID_INPUT' });
+    await assert.rejects(eventService.registerForEvent(student.id, 0), {
+      message: 'INVALID_INPUT',
+    });
+    await assert.rejects(eventService.cancelRegistration(0, 1), {
+      message: 'INVALID_INPUT',
+    });
+    await assert.rejects(eventService.cancelRegistration(student.id, 0), {
+      message: 'INVALID_INPUT',
+    });
+    await assert.rejects(eventService.getUserRegistrations(0), {
+      message: 'INVALID_INPUT',
+    });
+  });
+
+  it('rejects registration when a stored event date cannot be parsed', async () => {
+    const eventId = db.prepare(`
+      INSERT INTO events (title, description, date, location, capacity, organizer_id)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run('Invalid stored date', 'Test', 'not-a-date', 'Student Center', 5, organizer.id)
+      .lastInsertRowid;
+
+    await assert.rejects(eventService.registerForEvent(student.id, eventId), {
+      message: 'INVALID_INPUT',
+    });
   });
 });

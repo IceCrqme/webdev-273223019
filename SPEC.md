@@ -133,6 +133,15 @@ All MCP tools use the same service functions as the HTTP API, including authenti
 | AC-25 |  |
 | AC-26 | test/frontend.test.js |
 
+## Exercise 4 deployment/readiness status
+
+The production image and coverage gates are implemented. The Docker image uses a named
+`/data` volume for SQLite and sessions; `course.json.liveUrl` remains empty until a real
+deployment exists. Local coverage currently fails the configured thresholds (project
+branches 75.37% vs 80%; service layer 84.04% lines, 75.82% branches, and 92.30% functions
+vs 100%). These are measured gaps, not waived gates. Visual/responsive/accessibility
+checklist items remain unticked until manual browser evidence and screenshots are recorded.
+
 ## Spec vs result
 
 The planned Slice 1 covers email/password authentication, Google OAuth, and an upcoming events list backed by SQLite and a backend API (AC-14 to AC-19).

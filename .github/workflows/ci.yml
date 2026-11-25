@@ -81,7 +81,8 @@ jobs:
         if: hashFiles('package.json') != ''
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
-          # Your own script wins, if you have one: a project on Vitest or Jest is not wrong.
+          # This project uses its c8-backed npm script for the 80% project and
+          # 100% service-layer gates. Keep the Node fallback for template consumers.
           if node -e "process.exit(require('./package.json').scripts?.coverage ? 0 : 1)"; then
             npm run coverage
           else

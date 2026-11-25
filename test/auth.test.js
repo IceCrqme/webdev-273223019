@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const assert = require('node:assert/strict');
 const request = require('supertest');
+const Database = require('better-sqlite3');
 
 // Create unique temporary database and set environment variables before requiring app or database modules
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'club-events-test-'));
@@ -17,6 +18,7 @@ require('../database/init');
 // Require app and db after setting env and initializing
 const app = require('../src/app');
 const db = require('../src/data/db');
+const authService = require('../src/services/authService');
 
 describe('AC-14: Authentication Tests', () => {
   const agent = request.agent(app);
@@ -116,4 +118,89 @@ describe('AC-14: Authentication Tests', () => {
     assert.strictEqual(meRes.status, 401);
     assert.strictEqual(meRes.body.error, 'Not authenticated');
   });
+
+  it('rejects non-string credentials through the authentication service', async () => {
+    await assert.rejects(authService.register(null, testPassword), {
+      message: 'Email and password must be strings',
+    });
+    await assert.rejects(authService.register('valid@example.com', null), {
+      message: 'Email and password must be strings',
+    });
+    await assert.rejects(authService.login(null, testPassword), {
+      message: 'Invalid email or password',
+    });
+    await assert.rejects(authService.login(testEmail, null), {
+      message: 'Invalid email or password',
+    });
+  });
+
+  it('denies local-password login for Google-only accounts and looks users up by ID', async () => {
+    const googleUser = authService.findOrCreateGoogleUser({
+      subject: 'auth-service-google-subject',
+      email: 'google-only@example.com',
+      emailVerified: true,
+    });
+
+    await assert.rejects(authService.login(googleUser.email, testPassword), {
+      message: 'Invalid email or password',
+    });
+    assert.deepStrictEqual(await authService.getUserById(googleUser.id), {
+      id: googleUser.id,
+      email: googleUser.email,
+      role: 'student',
+    });
+    await assert.rejects(authService.getUserById(-1), { message: 'User not found' });
+  });
+
+  it('rejects malformed Google identities before creating or linking accounts', () => {
+    for (const identity of [
+      { subject: '', email: 'valid@example.com', emailVerified: true },
+      { subject: 'subject', email: 'invalid', emailVerified: true },
+      { subject: 'subject', email: 'valid@example.com', emailVerified: false },
+    ]) {
+      assert.throws(() => authService.findOrCreateGoogleUser(identity), {
+        message: 'INVALID_GOOGLE_IDENTITY',
+      });
+    }
+
+    for (const [userId, subject] of [[0, 'subject'], [1, ''], [1, null]]) {
+      assert.throws(() => authService.linkGoogleAccount(userId, subject), {
+        message: 'INVALID_GOOGLE_IDENTITY',
+      });
+    }
+  });
+
+  it('does not link a Google identity to a missing local account', () => {
+    assert.throws(() => authService.linkGoogleAccount(999999, 'unowned-subject'), {
+      message: 'User not found',
+    });
+  });
+
+  it('handles a duplicate email inserted while password hashing is in progress', async () => {
+    const email = 'register-race@example.com';
+    const registration = authService.register(email, testPassword);
+    db.prepare('INSERT INTO users (email, password, role) VALUES (?, ?, ?)')
+      .run(email, 'race-winner-hash', 'student');
+
+    await assert.rejects(registration, { message: 'Email already registered' });
+  });
+
+  it('propagates a real database-busy error during registration', async () => {
+    const competingConnection = new Database(dbPath);
+    const previousBusyTimeout = db.pragma('busy_timeout', { simple: true });
+    let lockStarted = false;
+    try {
+      db.pragma('busy_timeout = 0');
+      const registration = authService.register('database-busy@example.com', testPassword);
+      competingConnection.exec('BEGIN IMMEDIATE');
+      lockStarted = true;
+
+      await assert.rejects(registration, (error) => error.code === 'SQLITE_BUSY');
+    } finally {
+      if (lockStarted) competingConnection.exec('ROLLBACK');
+      competingConnection.close();
+      db.pragma(`busy_timeout = ${previousBusyTimeout}`);
+    }
+  });
+
 });

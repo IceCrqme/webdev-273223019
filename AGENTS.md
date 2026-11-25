@@ -10,7 +10,7 @@ See `SPEC.md` for goals, non-goals and acceptance criteria.
 - Install: `npm install`
 - Run: `npm run mcp`
 - Test: `node mcp-server/check.mjs -- npm run --silent mcp`
-- Coverage: Not configured
+- Coverage: `npm run coverage` (80% project and 100% service-layer gates)
 - MCP server: `node mcp-server/server.js`
 
 ## Conventions
