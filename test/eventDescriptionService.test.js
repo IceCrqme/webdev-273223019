@@ -22,6 +22,42 @@ describe('Exercise 3: event description suggestions', () => {
     });
   });
 
+  it('clears the timeout when a provider returns a suggestion promptly', async () => {
+    const originalSetTimeout = global.setTimeout;
+    const originalClearTimeout = global.clearTimeout;
+    const timeoutHandle = {};
+    let scheduledDelay;
+    let clearedHandle;
+    global.setTimeout = (callback, delay) => {
+      assert.strictEqual(typeof callback, 'function');
+      scheduledDelay = delay;
+      return timeoutHandle;
+    };
+    global.clearTimeout = (handle) => {
+      clearedHandle = handle;
+    };
+
+    try {
+      const service = createEventDescriptionService({
+        client: {
+          isConfigured: () => true,
+          generate: async () => 'A timely suggestion.',
+        },
+        timeoutMs: 25,
+      });
+
+      assert.deepStrictEqual(await service.suggestDescription(input), {
+        description: 'A timely suggestion.',
+        fallback: false,
+      });
+      assert.strictEqual(scheduledDelay, 25);
+      assert.strictEqual(clearedHandle, timeoutHandle);
+    } finally {
+      global.setTimeout = originalSetTimeout;
+      global.clearTimeout = originalClearTimeout;
+    }
+  });
+
   it('AC-9: rejects malformed provider output in favor of a safe suggestion', async () => {
     const fakeClient = {
       isConfigured: () => true,

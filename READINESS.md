@@ -14,6 +14,20 @@ curl -i https://<deployed-host>/health
 The health endpoint currently reports process liveness only (`{"status":"ok"}`); it does
 not check that SQLite can read or write. Verify a real page as well as `/health`.
 
+## Concise deployment plan
+
+1. Build the image and run one application instance with a persistent Docker volume
+   mounted at `/data`; set `DB_PATH=/data/club_events.db`. Do not use container-local
+   storage or `:memory:` for deployment.
+2. Set `NODE_ENV=production`, `PORT=3000`, and a stable, randomly generated
+   `SESSION_SECRET` through the host's secret manager. Put the instance behind HTTPS;
+   set `TRUST_PROXY=1` only when the TLS-terminating proxy is trusted.
+3. Confirm startup initialization, then check `/health` and database-backed behavior
+   such as `/api/events`. Restart or replace the container and verify the same SQLite
+   data remains available. Arrange and test volume backups before production use.
+4. After the deployed HTTPS site and persistence have been verified, set `course.json`'s
+   `liveUrl` to the real origin and run `node checks/ex4.mjs`.
+
 ## Build and run
 
 The image uses Node 22, runs as the non-root `node` user, initializes the SQLite database
@@ -78,9 +92,24 @@ currently hard-codes `gemini-2.0-flash`; setting `MODEL_NAME` does not change it
 ## Four states
 
 The browser UI has code and automated test coverage for loading, empty, error, and success
-flows, including model generation/failure behavior. These are not visual sign-off: no
-live-browser walkthrough or screenshots have been recorded. Follow the exact manual steps
-in `docs/UI.md` and leave each item unticked until its browser evidence is captured.
+flows, including model generation/failure behavior. On 2026-11-26 the first local probe
+used an in-memory database, which did not share initialized schema across processes. A
+follow-up used a disposable file-backed database; `/health`, `/api/events` (three future
+events), and the five existing HTML pages returned 200.
+
+The user reports manually checking the responsive layouts in Chrome at 380, 768, and
+1280 CSS pixels, and exercising account registration, duplicate-email handling, event
+registration/cancellation, and successful logout. These are reported manual results,
+not checks independently performed by this report. The responsive-layout checklist
+item is ticked; the other UI checklist items remain unticked unless explicitly verified.
+Screenshots shown in chat are not stored or linked in the repository; no repository
+screenshots or durable links are available. They are not claimed as evidence for
+unseen states. `node checks/ex4.mjs` is reported at 26/29 structural checks; UI
+verification/evidence and the absent live URL remain gaps. No live URL was added because
+there is no deployment. Automated frontend tests and local HTTP requests verify
+authentication/session behavior, not visual layout or keyboard accessibility. A safe
+organizer test-account provisioning procedure is still undocumented. See `docs/UI.md`
+for the exact remaining UI checks.
 
 ## Request waterfall
 
@@ -120,14 +149,20 @@ in `docs/UI.md` and leave each item unticked until its browser evidence is captu
 
 1. **High — no live deployment:** no public URL, TLS check, host configuration, or deployed
    persistence test exists. Add the actual URL to `course.json` only after verifying it.
-2. **High — coverage gates fail:** `npm run coverage` measured project statements 84.34%,
-   branches 75.37%, and functions 92.98%; the project gate fails its 80% branch threshold.
-   The service layer measured 84.04% lines, 75.82% branches, and 92.30% functions; its
-   configured 100% gates fail. Do not weaken the gates; add meaningful tests for uncovered
-   behavior before calling coverage ready.
-3. **Medium — UI evidence is incomplete:** responsive, visual, browser, and accessibility
-   checks are not manually verified. `docs/UI.md` records how to perform each check; its
-   screenshots are still absent.
+2. **High — service coverage gate fails:** the latest `npm run coverage` measured project
+   statements/lines 92.30%, branches 89.66%, and functions 98.24%; the project-wide 80%
+   gate passes. The service layer measured statements/lines 98.41%, branches 98.71%, and
+   functions 100%; its configured 100% statement/line and branch gates still fail. The
+   uncovered Google uniqueness catches are defensive paths behind immediate SQLite
+   transactions and in-transaction duplicate prechecks. c8 also reports the `finally`
+   locations in the description and OAuth services as uncovered synthetic branches, even
+   though tests verify timeout cleanup. Keep the error handling and thresholds unchanged.
+   The test suite passes 150 Mocha tests; see `AGENT_LOG.md` for the detailed run.
+3. **Medium — UI evidence is incomplete:** the user reports Chrome checks of responsive
+   layouts at 380/768/1280 CSS pixels and selected account/event flows. The remaining
+   loading/empty/error/success checks across screens, keyboard/focus, contrast, accessible
+   names, title/language, touch-target, model UI, and persistent screenshot evidence are
+   listed in `docs/UI.md`. Chat-shared screenshots are not stored in the repository.
 4. **Medium — model availability and price:** the Gemini client is pinned in code to
    `gemini-2.0-flash`. The official pricing page accessed 2026-11-25 does not list that
    model, so a current per-call dollar price cannot be substantiated. Do not enable a paid

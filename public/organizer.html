@@ -17,8 +17,11 @@
       <nav class="site-nav" aria-label="Main navigation">
         <a href="/">Events</a>
         <a href="/my-events.html">My Events</a>
-        <a href="/login.html">Log in</a>
-        <a href="/register.html">Register</a>
+        <a data-auth-guest hidden href="/login.html">Log in</a>
+        <a data-auth-guest hidden href="/register.html">Register</a>
+        <span id="auth-nav-user" role="status" hidden></span>
+        <button id="auth-nav-logout" class="secondary-button" type="button" hidden>Log out</button>
+        <span id="auth-nav-status" role="status" aria-live="polite">Checking sign-in status...</span>
       </nav>
 
       <p id="organizer-status" class="status" role="status" aria-live="polite">
@@ -67,6 +70,7 @@
       </div>
     </main>
 
+    <script src="/navigation.js"></script>
     <script src="/organizer.js"></script>
   </body>
 </html>

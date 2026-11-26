@@ -13,8 +13,8 @@ the text is readable, and nothing jumps around while it loads.
 
 - [ ] **One spacing scale and one type scale.** Sizes come from a small set of design tokens, not from numbers typed where they were needed.
   - Manual verification required: inspect the computed spacing and type values across every page in browser developer tools; confirm a consistent scale.
-- [ ] **Responsive at 380, 768 and 1280 pixels wide.** No horizontal scrollbar, no text running under another element.
-  - Manual verification required: open each page at 380, 768 and 1280 CSS pixels; check for horizontal scrolling, clipping, and overlap.
+- [x] **Responsive at 380, 768 and 1280 pixels wide.** No horizontal scrollbar, no text running under another element.
+  - How I checked (user-reported): the user reports manually checking the responsive layouts in Chrome at 380, 768 and 1280 CSS pixels. No repository screenshot or measurement log was provided.
 - [ ] **Nothing jumps while the page loads.** Images and cards reserve their space before their content arrives.
   - Manual verification required: cold-load the pages with throttled network and watch the layout before and after content arrives.
 
@@ -65,6 +65,57 @@ A screen that only handles "it worked" is a screen that lies to the user on the 
 <!-- Screenshots of at least the four states of one screen, and of the model feature
      thinking and failing. A link to them is enough; they do not have to be in the repo. -->
 
-No screenshots or live-browser evidence are available yet. Capture the loading, empty,
-error, and success states of one screen, plus the model loading and failure states, after
-the manual checks above; link the evidence here before ticking those items.
+### Assessment record · 2026-11-26
+
+The first local probe used `DB_PATH=:memory:`; because the initializer and app are
+separate processes, that did not share the initialized schema. It verified `/health`
+and static pages only, not the event API or UI. Follow-up testing used the disposable
+file `/tmp/club-events-ui-ex4-20261126/club_events.db`, initialized and seeded with the
+project scripts. With `PORT=3100`, `/health` returned 200 and `/api/events` returned
+three future events. `/`, `/login.html`, `/register.html`, `/my-events.html`, and
+`/organizer.html` each returned 200 with `text/html` and a page title. These are HTTP
+checks only, not rendered layout, state timing, or accessibility checks.
+
+The user subsequently reported manual Chrome checks at 380, 768 and 1280 CSS pixels,
+plus account registration, duplicate-email handling, event registration and
+cancellation, and successful logout. The responsive-layout checklist item is ticked
+based on that report. The interaction results are recorded here, but do not by
+themselves verify the broader keyboard, accessibility, or four-states-on-every-screen
+criteria below.
+
+Screenshots shown in chat are conversation-only: they are not stored or linked in this
+repository. No repository screenshot files or durable screenshot links were provided.
+The chat images are not claimed as evidence for states or pages they do not show.
+Earlier local HTTP checks, frontend tests, and API checks are not visual or keyboard
+evidence. `node checks/ex4.mjs` was reported at 26/29 structural checks; there is still
+no deployed URL in `course.json`. The dark-mode decision and the user-reported
+responsive-layout item are the only checked UI items.
+
+### UI checks still missing
+
+The following checklist items remain unticked:
+
+- **Visual stability/design tokens:** verify one spacing/type scale in developer tools
+  and check for layout shifts on throttled cold loads.
+- **Loading, empty, and error states:** verify useful loading feedback, meaningful empty
+  lists, and readable errors on every applicable screen. Include `/api/events`,
+  `/api/registrations`, auth, and organizer API failures.
+- **Success state:** confirm each core action's visible result without reloading on every
+  applicable screen. The reported registration, duplicate-email, event
+  registration/cancellation, and logout flows do not establish this full criterion.
+- **Keyboard flow and focus:** complete sign-in, a core action, and sign-out using only
+  the keyboard; then tab through every page and confirm visible focus indicators.
+- **Accessibility:** measure normal-text contrast with a named tool; inspect form input
+  names with a screen reader; verify each page's title and `lang` in the accessibility
+  tree; measure phone-sized touch targets against 44 by 44 CSS pixels.
+- **Model UI:** with delayed mocked responses, verify thinking feedback, failure
+  messaging/manual entry, and that suggestions are labelled as editable suggestions,
+  not facts.
+- **Persistent screenshot evidence:** capture and link genuine loading, empty, error,
+  and success states for one screen and the model thinking/failure states. Record the
+  browser, viewport, setup, and action. Chat-only images are not repository evidence.
+
+Use a real browser, an isolated database, and test student/organizer accounts for these
+remaining checks. The deployment notes still lack a verified organizer provisioning
+procedure; arrange a safe test organizer account or provisioning steps before testing
+the dashboard.

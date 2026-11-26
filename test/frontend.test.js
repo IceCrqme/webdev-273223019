@@ -1,3 +1,8 @@
+
+
+
+
+
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -11,7 +16,9 @@ function createNode(tagName = 'div') {
     textContent: '',
     innerHTML: '',
     value: '',
+    hidden: false,
     disabled: false,
+    dataset: {},
     className: '',
     children: [],
     attributes: {},
@@ -105,8 +112,16 @@ function createAuthDocument(mode) {
   const status = createNode('p');
   status.setAttribute('role', 'status');
   status.setAttribute('aria-live', 'polite');
+  status.hidden = true;
+  const sessionStatus = createNode('p');
+  sessionStatus.setAttribute('role', 'status');
+  sessionStatus.setAttribute('aria-live', 'polite');
   const form = createNode('form');
   form.dataset = { mode };
+  const panel = createNode('section');
+  panel.hidden = true;
+  const googleLinkPanel = createNode('section');
+  googleLinkPanel.hidden = true;
   const fields = {
     email: createNode('input'),
     password: createNode('input'),
@@ -115,6 +130,9 @@ function createAuthDocument(mode) {
   const googleLink = createNode('button');
   const elements = {
     '#auth-status': status,
+    '#auth-session-status': sessionStatus,
+    '#auth-panel': panel,
+    '#google-link-panel': googleLinkPanel,
     '#auth-form': form,
     '#auth-email': fields.email,
     '#auth-password': fields.password,
@@ -136,10 +154,58 @@ function createAuthDocument(mode) {
     },
     documentListeners,
     status,
+    sessionStatus,
+    panel,
+    googleLinkPanel,
     form,
     fields,
     submit,
     googleLink,
+  };
+}
+
+function createNavigationDocument() {
+  const guestLinks = [createNode('a'), createNode('a')];
+  const user = createNode('span');
+  user.hidden = true;
+  const logout = createNode('button');
+  logout.hidden = true;
+  const status = createNode('span');
+  const authPanel = createNode('section');
+  authPanel.hidden = true;
+  const googleLinkPanel = createNode('section');
+  googleLinkPanel.hidden = true;
+  const authSessionStatus = createNode('p');
+  const documentListeners = {};
+  const elements = {
+    '#auth-nav-user': user,
+    '#auth-nav-logout': logout,
+    '#auth-nav-status': status,
+    '#auth-panel': authPanel,
+    '#auth-session-status': authSessionStatus,
+    '#google-link-panel': googleLinkPanel,
+  };
+
+  return {
+    document: {
+      querySelector(selector) {
+        return elements[selector] || null;
+      },
+      querySelectorAll(selector) {
+        return selector === '[data-auth-guest]' ? guestLinks : [];
+      },
+      addEventListener(type, listener) {
+        documentListeners[type] = listener;
+      },
+    },
+    documentListeners,
+    guestLinks,
+    user,
+    logout,
+    status,
+    authPanel,
+    googleLinkPanel,
+    authSessionStatus,
   };
 }
 
@@ -202,12 +268,15 @@ async function loadOrganizerFrontend(fetchImpl, confirmImpl = () => true) {
   return { ...fake, api: context.window.OrganizerDashboard };
 }
 
-async function loadAuthFrontend(mode, fetchImpl, locationSearch = '') {
+async function loadAuthFrontend(mode, fetchImpl, locationSearch = '', authNavigation) {
   const appPath = path.join(__dirname, '../public/auth.js');
   const appSource = fs.readFileSync(appPath, 'utf8');
   const fake = createAuthDocument(mode);
   const context = vm.createContext({
-    window: { location: { href: '', search: locationSearch } },
+    window: {
+      location: { href: '', search: locationSearch },
+      AuthNavigation: authNavigation,
+    },
     document: fake.document,
     fetch: fetchImpl,
     console,
@@ -217,6 +286,35 @@ async function loadAuthFrontend(mode, fetchImpl, locationSearch = '') {
 
   vm.runInContext(appSource, context);
   return { ...fake, window: context.window };
+}
+
+async function loadNavigationFrontend(fetchImpl) {
+  const appPath = path.join(__dirname, '../public/navigation.js');
+  const appSource = fs.readFileSync(appPath, 'utf8');
+  const fake = createNavigationDocument();
+  let reloadCount = 0;
+  const window = {
+    location: {
+      reload() {
+        reloadCount += 1;
+      },
+    },
+  };
+  const context = vm.createContext({
+    window,
+    document: fake.document,
+    fetch: fetchImpl,
+    console,
+  });
+
+  vm.runInContext(appSource, context);
+  return {
+    ...fake,
+    api: context.window.AuthNavigation,
+    get reloadCount() {
+      return reloadCount;
+    },
+  };
 }
 
 async function loadMyEventsFrontend(fetchImpl, confirmImpl = () => true) {
@@ -1010,6 +1108,7 @@ describe('AC-2, AC-14: email and password authentication frontend', () => {
     assert.match(login.text, /href="\/"/);
     assert.match(login.text, /href="\/organizer\.html"/);
     assert.match(login.text, /aria-live="polite"/);
+    assert.match(login.text, /id="auth-panel"[^>]+hidden/);
     assert.match(login.text, /id="google-sign-in"[^>]+href="\/api\/auth\/google"/);
     assert.match(login.text, /id="google-link"[^>]+type="button"/);
     assert.strictEqual(register.status, 200);
@@ -1017,9 +1116,99 @@ describe('AC-2, AC-14: email and password authentication frontend', () => {
     assert.match(register.text, /href="\/login\.html"/);
     assert.match(register.text, /href="\/"/);
     assert.match(register.text, /href="\/organizer\.html"/);
+    assert.match(register.text, /id="auth-panel"[^>]+hidden/);
     assert.doesNotMatch(register.text, /name=["']role["']/i);
     assert.strictEqual(script.status, 200);
     assert.match(script.headers['content-type'], /javascript/);
+  });
+
+  it('loads the shared authentication navigation on every screen', async () => {
+    for (const page of [
+      '/',
+      '/login.html',
+      '/register.html',
+      '/my-events.html',
+      '/organizer.html',
+    ]) {
+      const response = await request(app).get(page);
+      assert.strictEqual(response.status, 200, page);
+      assert.match(response.text, /<script src="\/navigation\.js"><\/script>/, page);
+      assert.match(response.text, /id="auth-nav-logout"[^>]+type="button"[^>]+hidden/, page);
+    }
+
+    const navigationScript = await request(app).get('/navigation.js');
+    assert.strictEqual(navigationScript.status, 200);
+    assert.match(navigationScript.headers['content-type'], /javascript/);
+  });
+
+  it('shows guest links and the login form only after the server confirms the session is anonymous', async () => {
+    const page = await loadNavigationFrontend(async (url, options) => {
+      assert.strictEqual(url, '/api/auth/me');
+      assert.strictEqual(options.credentials, 'same-origin');
+      return jsonResponse(401, { error: 'Not authenticated' });
+    });
+
+    await page.documentListeners.DOMContentLoaded();
+
+    assert.ok(page.guestLinks.every((link) => !link.hidden));
+    assert.strictEqual(page.logout.hidden, true);
+    assert.strictEqual(page.authPanel.hidden, false);
+    assert.strictEqual(page.googleLinkPanel.hidden, true);
+    assert.strictEqual(page.authSessionStatus.hidden, true);
+  });
+
+  it('hides guest links and auth forms for signed-in users and logs out with the session CSRF token', async () => {
+    const calls = [];
+    const page = await loadNavigationFrontend(async (url, options) => {
+      calls.push({ url, options });
+      if (url === '/api/auth/me') {
+        return jsonResponse(200, {
+          id: 8,
+          email: 'signed-in@example.com',
+          role: 'student',
+        });
+      }
+      if (url === '/api/auth/csrf-token') {
+        return jsonResponse(200, { csrfToken: 'session-csrf-token' });
+      }
+      if (url === '/api/auth/logout') return jsonResponse(200, { message: 'Logged out successfully' });
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    await page.documentListeners.DOMContentLoaded();
+
+    assert.ok(page.guestLinks.every((link) => link.hidden));
+    assert.strictEqual(page.user.textContent, 'Signed in as signed-in@example.com');
+    assert.strictEqual(page.user.hidden, false);
+    assert.strictEqual(page.logout.hidden, false);
+    assert.strictEqual(page.authPanel.hidden, true);
+    assert.strictEqual(page.googleLinkPanel.hidden, false);
+    assert.match(page.authSessionStatus.textContent, /already signed in as signed-in@example.com/i);
+
+    await page.logout.listeners.click();
+
+    assert.deepStrictEqual(calls.map((call) => call.url), [
+      '/api/auth/me',
+      '/api/auth/csrf-token',
+      '/api/auth/logout',
+    ]);
+    assert.strictEqual(calls[2].options.method, 'POST');
+    assert.strictEqual(calls[2].options.credentials, 'same-origin');
+    assert.strictEqual(calls[2].options.headers['X-CSRF-Token'], 'session-csrf-token');
+    assert.strictEqual(page.reloadCount, 1);
+  });
+
+  it('keeps auth forms hidden when the current session cannot be verified', async () => {
+    const page = await loadNavigationFrontend(async () => {
+      throw new Error('network unavailable');
+    });
+
+    await page.documentListeners.DOMContentLoaded();
+
+    assert.strictEqual(page.authPanel.hidden, true);
+    assert.strictEqual(page.googleLinkPanel.hidden, true);
+    assert.match(page.authSessionStatus.textContent, /could not verify sign-in status/i);
+    assert.strictEqual(page.logout.hidden, true);
   });
 
   it('validates login input before sending a request', async () => {
@@ -1069,14 +1258,20 @@ describe('AC-2, AC-14: email and password authentication frontend', () => {
       });
       assert.strictEqual(page.window.location.href, destination);
       assert.match(page.status.textContent, /signed in/i);
+      assert.strictEqual(page.fields.password.value, '');
     }
   });
 
   it('validates registration and creates a student account without sending a role', async () => {
     const calls = [];
+    let navigationRefreshes = 0;
     const page = await loadAuthFrontend('register', async (url, options) => {
       calls.push({ url, options });
       return jsonResponse(201, { id: 9, role: 'student' });
+    }, '', {
+      async refresh() {
+        navigationRefreshes += 1;
+      },
     });
     page.documentListeners.DOMContentLoaded();
 
@@ -1101,6 +1296,8 @@ describe('AC-2, AC-14: email and password authentication frontend', () => {
       password: 'newPassword123',
     });
     assert.match(page.status.textContent, /account created/i);
+    assert.strictEqual(page.fields.password.value, '');
+    assert.strictEqual(navigationRefreshes, 1);
     assert.strictEqual(page.window.location.href, '');
   });
 

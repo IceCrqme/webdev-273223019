@@ -190,6 +190,39 @@ describe('Google OAuth service', () => {
     assert.ok(requests[0].options.signal instanceof AbortSignal);
   });
 
+  it('clears the provider request timeout after a successful response', async () => {
+    const originalSetTimeout = global.setTimeout;
+    const originalClearTimeout = global.clearTimeout;
+    const timeoutHandle = {};
+    let scheduledDelay;
+    let clearedHandle;
+    global.setTimeout = (callback, delay) => {
+      assert.strictEqual(typeof callback, 'function');
+      scheduledDelay = delay;
+      return timeoutHandle;
+    };
+    global.clearTimeout = (handle) => {
+      clearedHandle = handle;
+    };
+
+    try {
+      const service = createGoogleOAuthService({
+        fetchImpl: createFetch(),
+      });
+      await service.createAuthorizationUrl({
+        state: 'state-value',
+        nonce: 'nonce-value',
+        codeChallenge: 'challenge-value',
+      });
+
+      assert.strictEqual(scheduledDelay, 10000);
+      assert.strictEqual(clearedHandle, timeoutHandle);
+    } finally {
+      global.setTimeout = originalSetTimeout;
+      global.clearTimeout = originalClearTimeout;
+    }
+  });
+
   it('rejects untrusted or malformed discovery metadata and provider responses', async () => {
     const invalidMetadata = [
       { ...metadata, issuer: 'https://attacker.example' },

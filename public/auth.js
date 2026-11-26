@@ -11,6 +11,7 @@
     if (!status) return;
     status.textContent = message;
     status.setAttribute('data-state', state);
+    status.hidden = false;
   }
 
   function showGoogleResult() {
@@ -88,8 +89,12 @@
         return;
       }
 
+      const passwordField = passwordElement();
+      if (passwordField) passwordField.value = '';
+
       if (mode === 'register') {
         setStatus('Account created successfully. You are now signed in.', 'success');
+        await window.AuthNavigation?.refresh();
         return;
       }
 

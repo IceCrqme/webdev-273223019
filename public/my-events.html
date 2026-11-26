@@ -15,9 +15,12 @@
 
       <nav class="site-nav" aria-label="Main navigation">
         <a href="/">Events</a>
-        <a href="/login.html">Log in</a>
-        <a href="/register.html">Register</a>
+        <a data-auth-guest hidden href="/login.html">Log in</a>
+        <a data-auth-guest hidden href="/register.html">Register</a>
         <a href="/organizer.html">Organizer Dashboard</a>
+        <span id="auth-nav-user" role="status" hidden></span>
+        <button id="auth-nav-logout" class="secondary-button" type="button" hidden>Log out</button>
+        <span id="auth-nav-status" role="status" aria-live="polite">Checking sign-in status...</span>
       </nav>
 
       <p id="my-events-status" class="status" role="status" aria-live="polite">
@@ -25,6 +28,7 @@
       </p>
       <ul id="my-events-list" class="event-list my-events-list" aria-label="Your event registrations"></ul>
     </main>
+    <script src="/navigation.js"></script>
     <script src="/my-events.js"></script>
   </body>
 </html>

@@ -237,17 +237,24 @@ router.post('/login', async (req, res) => {
   }
 });
 
+router.get('/csrf-token', loadAuthenticatedUser, issueCsrfToken);
+
 /**
  * POST /api/auth/logout
  * Destroys the user session.
  */
-router.post('/logout', (req, res) => {
+router.post('/logout', loadAuthenticatedUser, requireCsrfToken, (req, res) => {
   req.session.destroy((err) => {
     if (err) {
       console.error('Logout error:', err);
       return res.status(500).json({ error: 'Internal server error' });
     }
-    res.clearCookie('connect.sid');
+    res.clearCookie('connect.sid', {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    });
     res.json({ message: 'Logged out successfully' });
   });
 });
@@ -257,6 +264,7 @@ router.post('/logout', (req, res) => {
  * Returns the currently authenticated user's profile.
  */
 router.get('/me', loadAuthenticatedUser, (req, res) => {
+  res.set('Cache-Control', 'no-store');
   res.json(req.authenticatedUser);
 });
 

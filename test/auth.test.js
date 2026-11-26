@@ -100,6 +100,8 @@ describe('AC-14: Authentication Tests', () => {
     const res = await request(app).get('/api/auth/me');
     assert.strictEqual(res.status, 401);
     assert.strictEqual(res.body.error, 'Not authenticated');
+    const token = await request(app).get('/api/auth/csrf-token');
+    assert.strictEqual(token.status, 401);
   });
 
   it('AC-14: should return user profile for authenticated GET /api/auth/me', async () => {
@@ -107,16 +109,45 @@ describe('AC-14: Authentication Tests', () => {
     const res = await agent.get('/api/auth/me');
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.email, testEmail);
+    assert.strictEqual(res.headers['cache-control'], 'no-store');
+  });
+
+  it('requires an authenticated session and a valid CSRF token before logout', async () => {
+    const anonymousLogout = await request(app).post('/api/auth/logout');
+    assert.strictEqual(anonymousLogout.status, 401);
+
+    const tokenResponse = await agent.get('/api/auth/csrf-token');
+    assert.strictEqual(tokenResponse.status, 200);
+    assert.match(tokenResponse.body.csrfToken, /^[a-f0-9]{64}$/);
+
+    const missingToken = await agent.post('/api/auth/logout');
+    assert.strictEqual(missingToken.status, 403);
+    const invalidToken = await agent
+      .post('/api/auth/logout')
+      .set('X-CSRF-Token', 'invalid-token');
+    assert.strictEqual(invalidToken.status, 403);
+
+    const stillAuthenticated = await agent.get('/api/auth/me');
+    assert.strictEqual(stillAuthenticated.status, 200);
   });
 
   it('AC-14: should successfully logout and deny subsequent access', async () => {
-    const logoutRes = await agent.post('/api/auth/logout');
+    const tokenResponse = await agent.get('/api/auth/csrf-token');
+    const logoutRes = await agent
+      .post('/api/auth/logout')
+      .set('X-CSRF-Token', tokenResponse.body.csrfToken);
     assert.strictEqual(logoutRes.status, 200);
     assert.strictEqual(logoutRes.body.message, 'Logged out successfully');
+    const clearCookie = logoutRes.headers['set-cookie']?.find((cookie) => (
+      /^connect\.sid=;/.test(cookie) && /expires=/i.test(cookie)
+    ));
+    assert.ok(clearCookie, 'logout should expire the session cookie');
 
     const meRes = await agent.get('/api/auth/me');
     assert.strictEqual(meRes.status, 401);
     assert.strictEqual(meRes.body.error, 'Not authenticated');
+    assert.strictEqual((await agent.get('/api/registrations')).status, 401);
+    assert.strictEqual((await agent.post('/api/events/1/register')).status, 401);
   });
 
   it('rejects non-string credentials through the authentication service', async () => {
@@ -174,6 +205,38 @@ describe('AC-14: Authentication Tests', () => {
     assert.throws(() => authService.linkGoogleAccount(999999, 'unowned-subject'), {
       message: 'User not found',
     });
+  });
+
+  it('preserves Google email and linked-account conflict protections', () => {
+    const localUser = db.prepare(
+      'INSERT INTO users (email, password, role) VALUES (?, ?, ?)'
+    ).run('google-conflict-local@example.com', 'unused-hash', 'student');
+    const linkedUser = authService.findOrCreateGoogleUser({
+      subject: 'google-conflict-subject',
+      email: 'google-conflict-linked@example.com',
+      emailVerified: true,
+    });
+
+    assert.throws(() => authService.findOrCreateGoogleUser({
+      subject: 'different-google-subject',
+      email: 'google-conflict-local@example.com',
+      emailVerified: true,
+    }), { message: 'GOOGLE_EMAIL_CONFLICT' });
+
+    assert.throws(() => authService.linkGoogleAccount(
+      Number(localUser.lastInsertRowid),
+      'google-conflict-subject'
+    ), { message: 'GOOGLE_ACCOUNT_LINKED' });
+
+    assert.strictEqual(
+      db.prepare('SELECT google_id FROM users WHERE id = ?')
+        .get(localUser.lastInsertRowid).google_id,
+      null
+    );
+    assert.strictEqual(
+      db.prepare('SELECT google_id FROM users WHERE id = ?').get(linkedUser.id).google_id,
+      'google-conflict-subject'
+    );
   });
 
   it('handles a duplicate email inserted while password hashing is in progress', async () => {
