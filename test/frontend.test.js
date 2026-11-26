@@ -1141,6 +1141,33 @@ describe('AC-2, AC-14: email and password authentication frontend', () => {
     assert.match(navigationScript.headers['content-type'], /javascript/);
   });
 
+  it('gives every shared navigation link a 44px target and preserves wrapping and focus styles', async () => {
+    for (const page of [
+      '/',
+      '/login.html',
+      '/register.html',
+      '/my-events.html',
+      '/organizer.html',
+    ]) {
+      const response = await request(app).get(page);
+      assert.strictEqual(response.status, 200, page);
+      assert.match(response.text, /<nav class="site-nav"/, page);
+      assert.match(response.text, /<link rel="stylesheet" href="\/styles\.css">/, page);
+    }
+
+    const styles = await request(app).get('/styles.css');
+    assert.strictEqual(styles.status, 200);
+    const navigationRule = styles.text.match(/\.site-nav\s*\{([^}]+)\}/)?.[1] ?? '';
+    const linkRule = styles.text.match(/\.site-nav a\s*\{([^}]+)\}/)?.[1] ?? '';
+    assert.match(navigationRule, /flex-wrap:\s*wrap/);
+    assert.match(linkRule, /display:\s*inline-flex/);
+    assert.match(linkRule, /min-width:\s*44px/);
+    assert.match(linkRule, /min-height:\s*44px/);
+    assert.match(linkRule, /align-items:\s*center/);
+    assert.match(styles.text, /\.site-nav a:focus-visible/);
+    assert.match(styles.text, /outline:\s*3px solid/);
+  });
+
   it('shows guest links and the login form only after the server confirms the session is anonymous', async () => {
     const page = await loadNavigationFrontend(async (url, options) => {
       assert.strictEqual(url, '/api/auth/me');
